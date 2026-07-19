@@ -40,6 +40,8 @@ games/my-game/
 
 ### game.json
 
+The real file must be strict JSON (the comments below are annotation only):
+
 ```jsonc
 {
   "id": "my-game",         // unique; convention: same as the folder name
@@ -84,7 +86,11 @@ export default function createGame(ctx: GameContext): GameServer {
 
   return {
     onAction(playerId, action) {
-      // action is EXACTLY what a client sent — validate everything.
+      // action is typed `any` and is EXACTLY what a client sent — validate
+      // everything before touching it. Canonical idiom:
+      //   if (typeof action !== "object" || action === null) return;
+      //   const a = action as { type?: unknown; ... };
+      //   if (a.type === "hit" && itIsTheirTurn(playerId)) { ... }
       // Host rebroadcasts automatically after this returns.
     },
     tick(dtMs) {
@@ -104,7 +110,7 @@ export default function createGame(ctx: GameContext): GameServer {
 
 | member | meaning |
 |---|---|
-| `players: PlayerInfo[]` | seated roster, frozen at start. `PlayerInfo = { id, name, teamId }` |
+| `players: PlayerInfo[]` | seated roster, frozen at start. `PlayerInfo = { id, name, teamId }` (`teamId` is `null` — not absent — when the player has no team) |
 | `teams: TeamInfo[]` | teams with seated members (`{ id, name, color }`); `[]` when teamless |
 | `update()` | ask the host to rebroadcast **now**. Only needed after timer-driven mutations — actions and ticks rebroadcast automatically |
 | `end(results)` | finish the round: `{ pointsByPlayer: Record<playerId, number>, summary?: string }`. Points are added to the party's cross-game ledger. Calling it twice is safe (second is ignored); after it, your instance is discarded |
@@ -199,24 +205,33 @@ results phase.
 
 ## Testing your game (do this before calling it done)
 
-1. `npx tsc --noEmit` from the repo root — must be clean.
+1. `npx tsc --noEmit` from the repo root — must be clean. If your game folder lives
+   *outside* the repo, temp-copy it into `games/` for the typecheck (the repo
+   tsconfig only includes repo-internal paths), then delete the copy.
 2. Scripted round against the real server (Node ≥ 22.6 runs `.ts` directly). Write a
-   throwaway script *outside* the repo:
+   throwaway script *outside* the repo — Node's built-in global `WebSocket` is all
+   you need, no imports beyond the server itself:
 
 ```js
 import { startServer } from "<repo>/src/server/index.ts";
-import WebSocket from "ws";
 
-const s = await startServer({ port: 0, gamesDir: null, allowShared: true,
-                              fresh: true, cwd: "<some tmp dir>", quiet: true });
-// Protocol cheat-sheet (JSON over ws to ws://127.0.0.1:PORT/ws):
+// Returns { port, close }. With port: 0 the OS picks a free port — read s.port.
+// gamesDir may be any directory of game folders (it's merged with the bundled
+// games); cwd is where the session file/build cache land — use a tmp dir.
+const s = await startServer({ port: 0, gamesDir: "<dir with your game>",
+                              allowShared: true, fresh: true,
+                              cwd: "<some tmp dir>", quiet: true });
+const ws = new WebSocket(`ws://127.0.0.1:${s.port}/ws`);
+// Protocol cheat-sheet (JSON messages over that socket):
 //   join:        {type:'join', token:'any-unique-string', name:'Ana', role:'player'}
-//                (first joiner becomes the lead; role:'shared' for a fake TV)
+//                (first joiner becomes the lead; role:'shared' for a fake TV;
+//                 your playerId in all game callbacks/state === the token you sent)
 //   start game:  {type:'lobby.admin', admin:{op:'startGame', gameId:'my-game'}}   (lead or shared only)
 //   game action: {type:'game.action', action:{...}}                    // → your onAction
 //   force end:   {type:'lobby.admin', admin:{op:'endGame'}}
 // Server → client messages: {type:'session'|'joined'|'game.state'|'game.over'|'error', ...}
-//   game.state = {gameId, state, you?, seated}   game.over = {results}
+//   game.state = {gameId, state, you?, seated}  (seated: PlayerInfo[] of this round)
+//   game.over  = {results: {gameId, gameName, pointsByPlayer, summary?}}
 await s.close();
 ```
 

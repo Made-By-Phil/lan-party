@@ -15,6 +15,11 @@ in that order. `docs/writing-a-game.md` is written to be sufficient on its own;
 every support question an LLM can't answer from the docs is a documentation bug —
 file it in the gaps list below.
 
+**Validated 2026-07-19:** a cold-context agent given only "read the README" built a
+new game (reaction-duel, out-of-repo folder via `--games-dir`) with a passing 12-check
+e2e and zero reads of framework source. The gaps it surfaced were folded back into
+the guide the same day; the ones that remain are listed below.
+
 ## Single-player sessions
 
 **What already works:** `minPlayers: 1` is honored end-to-end today (Blackjack is
@@ -96,6 +101,8 @@ Documentation gaps:
 - No documented versioning/compat story for `game.json` (what happens when the SDK
   adds fields — currently: unknown fields ignored, missing fields defaulted, but
   that's convention, not contract).
+- No worked example of a per-round placement scoring scheme in the guide (the
+  0–100 guideline is stated; the cold-context agent wanted a model to copy).
 
 Implementation gaps (SDK/framework):
 
@@ -113,6 +120,9 @@ Implementation gaps (SDK/framework):
 - **No spectating**: benched/late players get a waiting card even though public
   state is already broadcast to them; the shell could render the game's shared (or
   client) view read-only. (Also in BACKLOG.)
+- **No in-place typecheck for out-of-repo game folders** — authors must temp-copy
+  into `games/` to run `tsc` (a `lan-party typecheck <dir>` command or a shipped
+  game-tsconfig would remove the dance).
 - **SDK is types-only** — deliberate and good, but it means every game hand-rolls
   countdown bars, standings tables, and results overlays. A small optional
   `lan-party/ui` component kit (Countdown, Standings, ResultsOverlay) would cut

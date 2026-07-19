@@ -105,6 +105,9 @@ const COMMON: esbuild.BuildOptions = {
   sourcemap: "linked",
   logLevel: "silent",
   alias: { "lan-party/sdk": SDK_PATH },
+  // Game folders live anywhere (--games-dir) and have no node_modules of their
+  // own; resolve react etc. from the framework's install.
+  nodePaths: [join(packageRoot(), "node_modules")],
 };
 
 export async function buildGameServers(

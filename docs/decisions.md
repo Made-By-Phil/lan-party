@@ -105,3 +105,11 @@ Running log of design decisions and why they were made. Newest at the bottom.
     hold a short results state (5–6s) before calling ctx.end, so players see the
     outcome before being dropped back in the lobby. Convention, not framework —
     a shell-owned podium screen is in the backlog.
+
+27. **Documentation is validated by cold-context build, not review.** The authoring
+    guide's sufficiency claim is tested by giving an agent only "read the README"
+    and requiring a working, e2e-verified game with a list of every question the
+    docs couldn't answer; those gaps get folded back in. The first run (2026-07-19)
+    also caught a real SDK bug: external `--games-dir` folders couldn't resolve
+    react — fixed by pointing esbuild's `nodePaths` at the framework's own
+    node_modules.
