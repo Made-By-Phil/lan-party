@@ -158,6 +158,38 @@ describe("protocol", () => {
     c.close();
   });
 
+  it("discovers the bundled games", async () => {
+    const a = await new TestClient().connect(server.port);
+    const snap = (await a.expectMsg((m) => m.type === "session")) as any;
+    const ids = snap.catalog.map((m: any) => m.id).sort();
+    expect(ids).toEqual(["blackjack", "bomberman", "trivia"]);
+    a.close();
+  });
+
+  it("runs a game lifecycle: start, state broadcasts, admin force-end", async () => {
+    const a = await new TestClient().connect(server.port);
+    a.send({ type: "join", token: "tok-a", name: "Ana", role: "player" });
+    await a.expectMsg((m) => m.type === "joined");
+
+    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "blackjack" } });
+    const state = (await a.expectMsg((m) => m.type === "game.state")) as any;
+    expect(state.gameId).toBe("blackjack");
+    expect(state.seated.some((p: any) => p.id === "tok-a")).toBe(true);
+    await a.expectMsg((m) => m.type === "session" && m.session.phase === "in-game");
+
+    // Starting another game while one is running fails.
+    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "trivia" } });
+    await a.expectMsg((m) => m.type === "error");
+
+    a.send({ type: "lobby.admin", admin: { op: "endGame" } });
+    const over = (await a.expectMsg((m) => m.type === "game.over")) as any;
+    expect(over.results.gameId).toBe("blackjack");
+    await a.expectMsg((m) => m.type === "session" && m.session.phase === "lobby");
+    const snap = a.lastSession()!;
+    expect(snap.session.history.length).toBeGreaterThan(0);
+    a.close();
+  });
+
   it("rejects votes for unknown games", async () => {
     const a = await new TestClient().connect(server.port);
     a.send({ type: "join", token: "tok-a", role: "player" });

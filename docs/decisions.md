@@ -92,3 +92,16 @@ Running log of design decisions and why they were made. Newest at the bottom.
 
 23. **Games style themselves via bundled CSS with a per-game class prefix**
     (`bj-`, `tv-`, `bm-`). One global stylesheet namespace, convention over tooling.
+
+24. **The bomberman-style game ships as "Boom Grid"** (trademark caution, same as
+    Trivia) and runs at 20 Hz, not 30 — a 15×13 grid streamed as full snapshots is
+    perfectly smooth at 20 with a canvas renderer, and it halves broadcast traffic.
+
+25. **Chain-detonation kills credit the owner of the chain-triggering bomb.** The
+    player who set off the wave earned it; per-bomb attribution in a chain is
+    ambiguous and feels arbitrary in play.
+
+26. **Games can end early but always show a results beat.** All three bundled games
+    hold a short results state (5–6s) before calling ctx.end, so players see the
+    outcome before being dropped back in the lobby. Convention, not framework —
+    a shell-owned podium screen is in the backlog.

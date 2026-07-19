@@ -218,7 +218,7 @@ token.
 |---|---|---|---|
 | Blackjack | turn-based | device | private per-player state, turn order, dealer AI |
 | Trivia | timed rounds | adaptive | timers, simultaneous answers, speed scoring |
-| Bomberman | real-time 30 Hz | shared-arena | tick loop, phone-as-gamepad, arena on TV |
+| Boom Grid | real-time 20 Hz | shared-arena | tick loop, phone-as-gamepad, arena on TV |
 
 Further game ideas are tracked in [BACKLOG.md](../BACKLOG.md).
 
