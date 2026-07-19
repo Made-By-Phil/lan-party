@@ -1,0 +1,221 @@
+/* Trivia — player + shared visual styles. Prefix: tv- */
+
+.tv-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.tv-topline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.tv-qnum { font-weight: 700; }
+.tv-category {
+  margin-left: auto;
+  color: var(--accent-2);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Countdown */
+.tv-timer {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.tv-timer-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.12s linear;
+}
+.tv-timer-fill.tv-low { background: var(--bad); }
+.tv-timer-fill.tv-done { background: var(--border); }
+
+.tv-question {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 6px 0;
+}
+
+/* Answer buttons (player) */
+.tv-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tv-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font-size: 1.05rem;
+  padding: 16px 14px;
+  background: var(--bg-raised);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+}
+.tv-choice .tv-letter {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  font-weight: 800;
+}
+.tv-choice.tv-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.tv-choice.tv-selected .tv-letter { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tv-choice.tv-correct {
+  border-color: var(--good);
+  box-shadow: 0 0 0 1px var(--good) inset;
+}
+.tv-choice.tv-correct .tv-letter { background: var(--good); border-color: var(--good); color: #fff; }
+.tv-choice.tv-wrong {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 1px var(--bad) inset;
+}
+.tv-choice.tv-wrong .tv-letter { background: var(--bad); border-color: var(--bad); color: #fff; }
+.tv-choice.tv-dim { opacity: 0.55; }
+.tv-choice:disabled { opacity: 1; cursor: default; }
+.tv-choice.tv-dim:disabled { opacity: 0.55; }
+
+.tv-pickers {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tv-picker-chip {
+  font-size: 0.75rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* Answered roster */
+.tv-answered { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tv-answered-count { font-weight: 700; color: var(--accent-2); }
+.tv-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--text-muted);
+}
+.tv-player-chip.tv-in { color: var(--text); border-color: var(--good); }
+.tv-player-chip .tv-check { color: var(--good); font-weight: 800; }
+
+/* Reveal banner (player) */
+.tv-verdict {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 800;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+}
+.tv-verdict.tv-good { color: var(--good); border-color: var(--good); }
+.tv-verdict.tv-bad { color: var(--bad); border-color: var(--bad); }
+
+/* Standings */
+.tv-standings { list-style: none; margin: 0; padding: 0; }
+.tv-standing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.tv-standing-row.tv-me { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 8px; }
+.tv-rank { width: 2em; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tv-standing-row .tv-name { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tv-points { font-weight: 800; font-variant-numeric: tabular-nums; }
+.tv-delta { color: var(--good); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.tv-team-totals { display: flex; flex-wrap: wrap; gap: 8px; }
+.tv-team-total {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid;
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  background: var(--bg-raised);
+  font-weight: 700;
+}
+
+.tv-wait { text-align: center; color: var(--text-muted); }
+
+/* ------------------------------------------------------------------ */
+/* Shared visual (TV): everything bigger, arena + sidebar layout.      */
+/* ------------------------------------------------------------------ */
+
+.tv-shared {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 28px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+@media (min-width: 950px) {
+  .tv-shared { grid-template-columns: 3fr 1fr; }
+}
+
+.tv-shared-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.tv-shared .tv-topline { font-size: 1.5rem; }
+.tv-shared .tv-category { font-size: 1.2rem; }
+.tv-shared .tv-timer { height: 16px; }
+.tv-shared .tv-question { font-size: 2.4rem; margin: 10px 0; }
+
+.tv-shared .tv-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 700px) {
+  .tv-shared .tv-choices { grid-template-columns: 1fr; }
+}
+.tv-shared .tv-choice { font-size: 1.5rem; padding: 20px 18px; cursor: default; }
+.tv-shared .tv-choice .tv-letter { width: 44px; height: 44px; font-size: 1.2rem; }
+.tv-shared .tv-answered { font-size: 1.2rem; }
+.tv-shared .tv-answered-count { font-size: 1.4rem; }
+.tv-shared .tv-player-chip { font-size: 1rem; padding: 5px 14px; }
+.tv-shared .tv-verdict { font-size: 1.6rem; }
+
+.tv-sidebar { display: flex; flex-direction: column; gap: 12px; }
+.tv-sidebar h3 { font-size: 1.3rem; margin-bottom: 4px; }
+.tv-sidebar .tv-standings { font-size: 1.15rem; }
+.tv-sidebar .tv-team-total { font-size: 1.2rem; }
+
+.tv-shared .tv-results-title { font-size: 2.2rem; text-align: center; margin: 8px 0; }
+.tv-results-title { text-align: center; margin: 8px 0; }
