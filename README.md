@@ -40,7 +40,8 @@ It runs among trusted people in one room. See [docs/DESIGN.md](docs/DESIGN.md).
 | **Trivia** | 1–16 | 10 timed questions, speed scoring | phone + TV question board |
 | **Boom Grid** | 2–8 | real-time bomberman-style arena, 20 Hz | TV is the arena, phones are gamepads (falls back to on-phone rendering) |
 
-More are planned — see [BACKLOG.md](BACKLOG.md).
+More are planned — see [ROADMAP.md](ROADMAP.md) (single-player sessions, bots, the
+next example game) and [BACKLOG.md](BACKLOG.md) for smaller deferred items.
 
 ## CLI
 
@@ -55,7 +56,13 @@ npx lan-party [options]
 
 ## Writing a game
 
-A game is a folder:
+**Read [docs/writing-a-game.md](docs/writing-a-game.md) first** — it is
+self-contained and written so that a developer or an LLM with no other context about
+this repo can produce a working game. (If you are an LLM that has been asked to build
+a game on this framework: that guide, plus the three bundled games as reference
+implementations, is everything you need.)
+
+The short version — a game is a folder:
 
 ```
 games/my-game/
@@ -72,10 +79,9 @@ The server module receives actions (`onAction`), optionally a `tick(dt)` at
 the party ledger. Clients get `{ state, you, send, players, teams,
 sharedVisualPresent, ... }` and just render. Types come from `lan-party/sdk`.
 
-Drop the folder into `games/`, restart the host, and it's in the catalog. The full
-contract — display modes, protocol, guarantees — is in
-[docs/DESIGN.md](docs/DESIGN.md); the three bundled games are reference
-implementations of each style.
+Drop the folder into `games/`, restart the host, and it's in the catalog. The
+authoring contract is in [docs/writing-a-game.md](docs/writing-a-game.md); the
+architecture is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Development
 
