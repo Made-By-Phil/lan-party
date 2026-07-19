@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.lan-party/
+*.log
+.DS_Store
