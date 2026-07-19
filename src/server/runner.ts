@@ -19,12 +19,17 @@ export class GameRunner {
   private tickTimer: NodeJS.Timeout | null = null;
   private lastTick = 0;
 
-  constructor(
-    public def: GameDef,
-    public seated: PlayerInfo[],
-    public teams: TeamInfo[],
-    private cb: RunnerCallbacks,
-  ) {}
+  def: GameDef;
+  seated: PlayerInfo[];
+  teams: TeamInfo[];
+  private cb: RunnerCallbacks;
+
+  constructor(def: GameDef, seated: PlayerInfo[], teams: TeamInfo[], cb: RunnerCallbacks) {
+    this.def = def;
+    this.seated = seated;
+    this.teams = teams;
+    this.cb = cb;
+  }
 
   start(create: CreateGame): void {
     this.instance = create({

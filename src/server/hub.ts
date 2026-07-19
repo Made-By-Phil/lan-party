@@ -31,12 +31,21 @@ export class Hub {
   private conns = new Set<Conn>();
   runner: GameRunner | null = null;
 
+  session: Session;
+  defs: GameDef[];
+  private builtServers: Map<string, string>;
+  private opts: HubOptions;
+
   constructor(
-    public session: Session,
-    public defs: GameDef[],
-    private builtServers: Map<string, string>,
-    private opts: HubOptions,
+    session: Session,
+    defs: GameDef[],
+    builtServers: Map<string, string>,
+    opts: HubOptions,
   ) {
+    this.session = session;
+    this.defs = defs;
+    this.builtServers = builtServers;
+    this.opts = opts;
     session.onChange = () => this.broadcastSession();
   }
 
@@ -53,6 +62,9 @@ export class Hub {
   handleConnection(ws: WebSocket, debugAddr?: string): void {
     const conn: Conn = { ws, role: null, playerId: null, debugAddr };
     this.conns.add(conn);
+    // Immediate snapshot so the connect screen knows about the party
+    // (shared-visual availability, roster) before joining.
+    this.send(conn, this.sessionMsg());
     ws.on("message", (data) => {
       let msg: ClientMsg;
       try {
@@ -115,10 +127,18 @@ export class Hub {
   private handleJoin(conn: Conn, msg: Extract<ClientMsg, { type: "join" }>): void {
     if (msg.role === "shared") {
       if (!this.opts.allowShared) {
-        return this.send(conn, { type: "error", message: "Shared visual is disabled on this party." });
+        return this.send(conn, {
+          type: "error",
+          message: "Shared visual is disabled on this party.",
+          code: "shared-unavailable",
+        });
       }
       if (this.sharedVisualPresent) {
-        return this.send(conn, { type: "error", message: "A shared visual is already connected." });
+        return this.send(conn, {
+          type: "error",
+          message: "A shared visual is already connected.",
+          code: "shared-unavailable",
+        });
       }
       conn.role = "shared";
       conn.playerId = null;
@@ -150,7 +170,11 @@ export class Hub {
         this.session.kick(pid);
         for (const c of this.conns) {
           if (c.playerId === pid) {
-            this.send(c, { type: "error", message: "You were removed from the party." });
+            this.send(c, {
+              type: "error",
+              message: "You were removed from the party.",
+              code: "kicked",
+            });
             c.playerId = null;
             c.ws.close();
           }
@@ -267,13 +291,18 @@ export class Hub {
     }
   }
 
-  broadcastSession(): void {
-    this.broadcast({
+  private sessionMsg(): ServerMsg {
+    return {
       type: "session",
       session: this.session.toState(),
       catalog: this.catalog(),
       sharedVisualPresent: this.sharedVisualPresent,
-    });
+      sharedVisualAllowed: this.opts.allowShared,
+    };
+  }
+
+  broadcastSession(): void {
+    this.broadcast(this.sessionMsg());
   }
 
   broadcastGameState(): void {

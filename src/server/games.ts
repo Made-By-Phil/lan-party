@@ -166,6 +166,8 @@ export async function buildClientApp(
       loader: "tsx",
     },
     platform: "browser",
+    minify: true,
+    define: { "process.env.NODE_ENV": '"production"' },
     outfile: join(buildDir, "app.js"),
   });
 }

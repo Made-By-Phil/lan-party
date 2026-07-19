@@ -43,10 +43,13 @@ export class Session {
   private saveTimer: NodeJS.Timeout | null = null;
   private nextTeamIdx = 0;
 
-  constructor(
-    private file: string,
-    public onChange: () => void = () => {},
-  ) {}
+  private file: string;
+  onChange: () => void;
+
+  constructor(file: string, onChange: () => void = () => {}) {
+    this.file = file;
+    this.onChange = onChange;
+  }
 
   static load(file: string, fresh: boolean): Session {
     const s = new Session(file);

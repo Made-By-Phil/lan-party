@@ -90,6 +90,7 @@ export type ServerMsg =
       session: SessionState;
       catalog: GameManifest[];
       sharedVisualPresent: boolean;
+      sharedVisualAllowed: boolean;
     }
   | {
       type: "game.state";
@@ -102,4 +103,4 @@ export type ServerMsg =
       seated: PlayerInfo[];
     }
   | { type: "game.over"; results: GameResultEntry }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; code?: "kicked" | "shared-unavailable" };
