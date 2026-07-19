@@ -1,0 +1,10 @@
+{
+  "id": "bomberman",
+  "name": "Boom Grid",
+  "description": "Drop bombs, grab power-ups, be the last one standing.",
+  "minPlayers": 2,
+  "maxPlayers": 8,
+  "teams": "none",
+  "tickRate": 20,
+  "displayMode": "shared-arena"
+}
