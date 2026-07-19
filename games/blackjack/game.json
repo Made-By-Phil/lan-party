@@ -1,0 +1,10 @@
+{
+  "id": "blackjack",
+  "name": "Blackjack",
+  "description": "Beat the dealer over five quick hands.",
+  "minPlayers": 1,
+  "maxPlayers": 7,
+  "teams": "none",
+  "tickRate": 0,
+  "displayMode": "device"
+}
