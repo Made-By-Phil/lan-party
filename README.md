@@ -54,6 +54,27 @@ npx lan-party [options]
   --fresh             Ignore the saved session and start a new party
 ```
 
+### Installing games
+
+```
+npx lan-party add trivia                    from the curated registry
+npx lan-party add github:owner/repo --trust  a GitHub repo
+npx lan-party add ./path/to/game             a local folder or archive
+npx lan-party list                           what's installed
+npx lan-party remove someone/trivia          uninstall
+npx lan-party validate ./my-game             does it build, run, and let go?
+```
+
+Games install into `./games` and are validated before they land: the manifest and
+engine range are checked, the game is built, and its server is run in a child
+process to confirm it survives junk input and releases the event loop afterwards.
+A game that fails any of that is never placed.
+
+**`--trust` is not a formality.** A game's `server.ts` runs in the host process with
+full access to your files and network, so anything outside the curated registry
+requires you to say so explicitly. Local paths don't — you could copy the folder into
+`games/` yourself, which runs it just the same.
+
 ## Writing a game
 
 **Read [docs/writing-a-game.md](docs/writing-a-game.md) first** — it is

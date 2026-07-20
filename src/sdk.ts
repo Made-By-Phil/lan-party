@@ -49,6 +49,13 @@ export interface GameServer {
   tick?(dtMs: number): void;
   onPlayerDisconnect?(playerId: string): void;
   onPlayerReconnect?(playerId: string): void;
+  /**
+   * Release anything that outlives a round — above all your own timers.
+   * Called when the round ends for any reason, including an admin force-end.
+   * Without this a pending setTimeout keeps firing into a discarded round, and
+   * the host can never fully let go of the game.
+   */
+  dispose?(): void;
   /** Broadcast to everyone. Must be JSON-serializable. */
   getPublicState(): any;
   /** Private overlay for one player (their hand, their role, ...). */

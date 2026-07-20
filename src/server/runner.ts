@@ -104,6 +104,8 @@ export class GameRunner {
   stop(): void {
     if (this.tickTimer) clearInterval(this.tickTimer);
     this.tickTimer = null;
+    // The game's own timers are invisible to us; only it can release them.
+    this.guard(() => this.instance?.dispose?.());
   }
 
   /** Run game code without letting a game bug take the party down. */

@@ -111,6 +111,7 @@ export default function createGame(ctx: GameContext): GameServer {
     },
     onPlayerDisconnect(playerId) { /* optional — see "never stall" below */ },
     onPlayerReconnect(playerId) { /* optional */ },
+    dispose() { clearTimeout(myTimer); },                // optional — see "timers are yours"
     getPublicState() { return state.publicView; },       // sent to everyone
     getPlayerState(playerId) { return state.handOf(playerId); }, // optional, per-player private overlay
     getSharedState() { return state.tvExtras; },         // optional, TV only (shallow-merged over public)
@@ -135,13 +136,18 @@ export default function createGame(ctx: GameContext): GameServer {
 3. **Never stall.** A disconnected player must not freeze the game: auto-play their
    turn, skip them, or let a timeout resolve it. Use `onPlayerDisconnect` /
    `onPlayerReconnect` to track who's live. The framework will *not* pause for you.
-4. **Timers are yours.** Use plain `setTimeout`/`setInterval` in `server.ts`, and call
-   `ctx.update()` after any timer-driven state change. Convention for countdowns: put
-   an absolute deadline (`Date.now() + ms`, epoch milliseconds) in public state and
-   let clients render the countdown locally.
-   ⚠️ If an admin force-ends your round, your pending timers still fire against a dead
-   instance. `ctx.update()`/`ctx.end()` become no-ops and thrown errors are swallowed,
-   so this is harmless — but guard your callbacks if they'd corrupt something.
+4. **Timers are yours — and so is releasing them.** Use plain
+   `setTimeout`/`setInterval` in `server.ts`, and call `ctx.update()` after any
+   timer-driven state change. Convention for countdowns: put an absolute deadline
+   (`Date.now() + ms`, epoch milliseconds) in public state and let clients render the
+   countdown locally.
+   **Clear every timer in `dispose()`.** The host calls it when the round ends for any
+   reason, including an admin force-end. Nothing else can release your timers: the
+   host cannot see them. `ctx.update()`/`ctx.end()` are no-ops afterwards, so a stray
+   callback is survivable, but each abandoned round leaks its pending timers and the
+   host can never fully let go of the game. **`lan-party validate` fails a game that
+   is still holding the event loop open after `dispose()`**, so this is enforced, not
+   merely advised.
 5. **Exceptions are contained** — a throw in any of your callbacks is logged and
    swallowed; the game continues. Don't rely on this; it's a crash pad, not a pattern.
 6. **Show the outcome before ending.** Convention: hold a short `results` phase
@@ -286,7 +292,10 @@ hand you control exactly, a disconnect mid-turn not stalling the round, and
 
 ## Checklist
 
-- [ ] `game.json` valid; id unique; `shared.tsx` present if `shared-arena`
+- [ ] `lan-party validate <your-folder>` passes (builds, runs, and lets go)
+- [ ] `game.json` valid; id namespaced `scope/name`; `engine` range declared;
+      `shared.tsx` present if `shared-arena`
+- [ ] every timer cleared in `dispose()`
 - [ ] every `onAction` payload validated; wrong-turn/wrong-phase actions ignored
 - [ ] state JSON-serializable; secrets in `getPlayerState`, never in public state
 - [ ] deadlines as epoch-ms in state; `ctx.update()` after every timer mutation

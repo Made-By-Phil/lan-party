@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
 import { engineMismatch, satisfiesEngine } from "../engine.ts";
@@ -23,27 +23,40 @@ const CONTROLS_PATH = join(packageRoot(), "src/controls.tsx");
  * Invalid games are skipped with a warning, never fatal — one broken download
  * shouldn't take the party down.
  */
+/**
+ * Validate a single game folder. Throws with a human-readable reason — used by
+ * discovery (which downgrades it to a warning) and by the installer (which
+ * refuses the install and shows it to the user).
+ */
+export function loadGameDef(dir: string, folderName?: string): GameDef {
+  const manifestPath = join(dir, "game.json");
+  if (!existsSync(manifestPath)) throw new Error("no game.json");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch (err) {
+    throw new Error(`game.json is not valid JSON: ${(err as Error).message}`);
+  }
+  const manifest = validateManifest(raw, folderName ?? basename(dir));
+  const serverEntry = findEntry(dir, ["server.ts", "server.tsx"]);
+  const clientEntry = findEntry(dir, ["client.tsx", "client.ts"]);
+  if (!serverEntry || !clientEntry) throw new Error("missing server.ts or client.tsx");
+  const sharedEntry = findEntry(dir, ["shared.tsx", "shared.ts"]);
+  if (manifest.displayMode === "shared-arena" && !sharedEntry) {
+    throw new Error('displayMode "shared-arena" requires a shared.tsx');
+  }
+  return { manifest, dir, serverEntry, clientEntry, sharedEntry };
+}
+
 export function discoverGames(gamesDir: string): GameDef[] {
   if (!existsSync(gamesDir)) return [];
   const defs: GameDef[] = [];
   for (const entry of readdirSync(gamesDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const dir = join(gamesDir, entry.name);
-    const manifestPath = join(dir, "game.json");
-    if (!existsSync(manifestPath)) continue;
+    if (!existsSync(join(dir, "game.json"))) continue;
     try {
-      const raw = JSON.parse(readFileSync(manifestPath, "utf8"));
-      const manifest = validateManifest(raw, entry.name);
-      const serverEntry = findEntry(dir, ["server.ts", "server.tsx"]);
-      const clientEntry = findEntry(dir, ["client.tsx", "client.ts"]);
-      if (!serverEntry || !clientEntry) {
-        throw new Error("missing server.ts or client.tsx");
-      }
-      const sharedEntry = findEntry(dir, ["shared.tsx", "shared.ts"]);
-      if (manifest.displayMode === "shared-arena" && !sharedEntry) {
-        throw new Error('displayMode "shared-arena" requires a shared.tsx');
-      }
-      defs.push({ manifest, dir, serverEntry, clientEntry, sharedEntry });
+      defs.push(loadGameDef(dir, entry.name));
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
       console.warn(`[lan-party] skipping game "${entry.name}": ${why}`);

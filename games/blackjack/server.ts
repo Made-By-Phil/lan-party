@@ -264,6 +264,12 @@ export default function createGame(ctx: GameContext): GameServer {
   // ---- GameServer ---------------------------------------------------------
 
   return {
+    dispose() {
+      ended = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+
     onAction(playerId, action) {
       if (ended || typeof action !== "object" || action === null) return;
       const type = (action as { type?: unknown }).type;
