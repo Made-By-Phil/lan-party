@@ -1,0 +1,11 @@
+{
+  "id": "test/alpha",
+  "name": "Alpha",
+  "description": "Fixture game used by the test suite.",
+  "minPlayers": 1,
+  "maxPlayers": 4,
+  "teams": "none",
+  "tickRate": 0,
+  "displayMode": "device",
+  "engine": "^0.1.0"
+}

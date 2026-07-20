@@ -71,6 +71,16 @@ export function Lobby() {
 
       <section>
         <h3>Pick the next game {Object.keys(session.votes).length > 0 && <span className="muted">(votes are in!)</span>}</h3>
+        {client.catalog.length === 0 && (
+          <div className="card center empty-catalog">
+            <h3>No games yet</h3>
+            <p className="muted">
+              {isLead
+                ? "You're the party lead — add the first one below."
+                : "Waiting for the host to add some games."}
+            </p>
+          </div>
+        )}
         <div className="game-cards">
           {client.catalog.map((m) => {
             const blocker = startBlocker(m, session);

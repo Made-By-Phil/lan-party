@@ -130,13 +130,10 @@ async function cmdAdd(args: string[]): Promise<void> {
 
 function cmdList(): void {
   const lock = readLockfile(dataDir);
-  const bundled = discoverGames(join(root, "games"));
   const installed = existsSync(gamesDir) ? discoverGames(gamesDir) : [];
 
   console.log(`\nEngine ${ENGINE_VERSION}\n`);
-  console.log("Bundled:");
-  for (const d of bundled) console.log(`  ${d.manifest.id.padEnd(28)} ${d.manifest.name}`);
-  console.log("\nInstalled (./games):");
+  console.log("Installed (./games):");
   if (installed.length === 0) {
     console.log("  none — try `lan-party add <name>`");
   }

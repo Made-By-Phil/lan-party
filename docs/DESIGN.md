@@ -84,7 +84,7 @@ Decisions and their rationale live in [decisions.md](./decisions.md).
 ```
 npx lan-party [options]
   --port <n>          Port (default 4700)
-  --games-dir <path>  Games directory (default ./games, falls back to bundled games)
+  --games-dir <path>  Games directory (default ./games)
   --no-shared-visual  Never offer the shared-visual role on the connect screen
   --fresh             Ignore any saved session file and start a new party
 ```
@@ -231,6 +231,6 @@ src/
   shared/types.ts    protocol + SDK types (imported by server, shell, and games)
   sdk.ts             public SDK surface re-exported for game authors
 shell/               React apps: player.tsx, shared.tsx, connection + game host views
-games/               bundled games (blackjack, trivia, bomberman)
+games/               installed games (empty on a fresh install)
 docs/                DESIGN.md, decisions.md
 ```

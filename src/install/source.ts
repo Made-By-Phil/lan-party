@@ -84,8 +84,13 @@ export interface RegistryEntry {
   id: string;
   name?: string;
   description?: string;
-  /** Tarball to download. */
+  /** Tarball to download. For a curated monorepo this is the whole repo. */
   tarball: string;
+  /**
+   * Path to the game within the tarball, e.g. "games/trivia". Required when the
+   * tarball holds many games, which is the curated repo's shape (decision 29).
+   */
+  subdir?: string;
   /** Expected digest; when present the download must match. */
   sha256?: string;
   engine?: string;

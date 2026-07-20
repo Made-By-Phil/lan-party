@@ -166,11 +166,15 @@ async function materialize(
 
   let url: string;
   let expected: string | undefined;
+  let subdir = src.subdir;
 
   if (src.kind === "registry") {
     const entry = findEntry(await fetchRegistry(), src.id!);
     url = entry.tarball;
     expected = entry.sha256;
+    // The curated repo ships every game in one tarball; the index says which
+    // folder to take.
+    subdir = entry.subdir;
   } else if (src.kind === "github") {
     url = githubTarball(src);
   } else {
@@ -188,10 +192,10 @@ async function materialize(
   // flatten() stops at the repo root for a monorepo (many entries, no
   // game.json), which is exactly where a subdir path is anchored.
   let dir = flatten(out);
-  if (src.subdir) {
-    const candidate = join(dir, src.subdir);
+  if (subdir) {
+    const candidate = join(dir, subdir);
     if (!existsSync(join(candidate, "game.json"))) {
-      throw new Error(`no game.json under "${src.subdir}" in ${url}`);
+      throw new Error(`no game.json under "${subdir}" in ${url}`);
     }
     dir = candidate;
   }

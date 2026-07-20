@@ -47,6 +47,12 @@ export function SharedLobby() {
 
         <section className="shared-side">
           <h3>Next game</h3>
+          {client.catalog.length === 0 && (
+            <div className="card center empty-catalog">
+              <h3>No games installed</h3>
+              <p className="muted">Add some with “＋ Add games” below.</p>
+            </div>
+          )}
           <div className="game-cards">
             {client.catalog.map((m) => {
               const blocker = startBlocker(m, session);

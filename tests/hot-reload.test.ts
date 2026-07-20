@@ -50,6 +50,10 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 async function party(): Promise<RunningServer> {
   dir = mkdtempSync(join(tmpdir(), "lp-hot-"));
   mkdirSync(join(dir, "games"), { recursive: true });
+  // Seed one game: there are no bundled games any more.
+  cpSync(join(root, "tests/fixtures/games/beta"), join(dir, "games", "test__beta"), {
+    recursive: true,
+  });
   server = await startServer({
     port: 0,
     gamesDir: join(dir, "games"),
@@ -62,9 +66,9 @@ async function party(): Promise<RunningServer> {
   return server;
 }
 
-function dropGame(id: string, from = "trivia"): void {
+function dropGame(id: string, from = "alpha"): void {
   const dest = join(dir, "games", id.replace("/", "__"));
-  cpSync(join(root, "games", from), dest, { recursive: true });
+  cpSync(join(root, "tests/fixtures/games", from), dest, { recursive: true });
   const p = join(dest, "game.json");
   const m = JSON.parse(readFileSync(p, "utf8"));
   m.id = id;
@@ -97,7 +101,7 @@ describe("rebuild and reload", () => {
     b.send({ type: "join", token: "tok-b", name: "Ben", role: "player" });
     await settle();
 
-    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "lan-party/blackjack" } });
+    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "test/beta" } });
     await settle(500);
     expect(a.lastCatalog().length).toBeGreaterThan(0);
 

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import WebSocket from "ws";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startServer, type RunningServer } from "../src/server/index.ts";
+import { packageRoot } from "../src/server/paths.ts";
 import type { ClientMsg, ServerMsg } from "../src/shared/types.ts";
 
 /** Tiny ws test client that records every server message. */
@@ -52,7 +53,7 @@ beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "lp-server-test-"));
   server = await startServer({
     port: 0,
-    gamesDir: null,
+    gamesDir: join(packageRoot(), "tests/fixtures/games"),
     allowShared: true,
     fresh: true,
     cwd: dir,
@@ -158,11 +159,11 @@ describe("protocol", () => {
     c.close();
   });
 
-  it("discovers the bundled games", async () => {
+  it("discovers games from the games dir", async () => {
     const a = await new TestClient().connect(server.port);
     const snap = (await a.expectMsg((m) => m.type === "session")) as any;
     const ids = snap.catalog.map((m: any) => m.id).sort();
-    expect(ids).toEqual(["lan-party/blackjack", "lan-party/bomberman", "lan-party/trivia"]);
+    expect(ids).toEqual(["test/alpha", "test/beta"]);
     a.close();
   });
 
@@ -171,19 +172,19 @@ describe("protocol", () => {
     a.send({ type: "join", token: "tok-a", name: "Ana", role: "player" });
     await a.expectMsg((m) => m.type === "joined");
 
-    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "lan-party/blackjack" } });
+    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "test/alpha" } });
     const state = (await a.expectMsg((m) => m.type === "game.state")) as any;
-    expect(state.gameId).toBe("lan-party/blackjack");
+    expect(state.gameId).toBe("test/alpha");
     expect(state.seated.some((p: any) => p.id === "tok-a")).toBe(true);
     await a.expectMsg((m) => m.type === "session" && m.session.phase === "in-game");
 
     // Starting another game while one is running fails.
-    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "lan-party/trivia" } });
+    a.send({ type: "lobby.admin", admin: { op: "startGame", gameId: "test/beta" } });
     await a.expectMsg((m) => m.type === "error");
 
     a.send({ type: "lobby.admin", admin: { op: "endGame" } });
     const over = (await a.expectMsg((m) => m.type === "game.over")) as any;
-    expect(over.results.gameId).toBe("lan-party/blackjack");
+    expect(over.results.gameId).toBe("test/alpha");
     await a.expectMsg((m) => m.type === "session" && m.session.phase === "lobby");
     const snap = a.lastSession()!;
     expect(snap.session.history.length).toBeGreaterThan(0);

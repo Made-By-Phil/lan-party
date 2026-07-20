@@ -18,7 +18,7 @@ let registryPort = 0;
 async function startRegistry(): Promise<void> {
   const staging = join(dir, "staging");
   mkdirSync(join(staging, "ana-quiz"), { recursive: true });
-  cpSync(join(root, "games", "trivia"), join(staging, "ana-quiz"), { recursive: true });
+  cpSync(join(root, "tests/fixtures/games", "alpha"), join(staging, "ana-quiz"), { recursive: true });
   const p = join(staging, "ana-quiz", "game.json");
   const m = JSON.parse(readFileSync(p, "utf8"));
   m.id = "ana/quiz";
@@ -29,6 +29,25 @@ async function startRegistry(): Promise<void> {
   const tarball = join(dir, "quiz.tar.gz");
   spawnSync("tar", ["-czf", tarball, "-C", staging, "ana-quiz"]);
   const body = readFileSync(tarball);
+
+  // A monorepo tarball, exactly the curated repo's shape: a wrapper directory
+  // containing many games, with the index naming the subdir to take.
+  const mono = join(dir, "mono");
+  mkdirSync(join(mono, "games-repo-main", "games", "chess"), { recursive: true });
+  cpSync(
+    join(root, "tests/fixtures/games", "beta"),
+    join(mono, "games-repo-main", "games", "chess"),
+    { recursive: true },
+  );
+  const cp = join(mono, "games-repo-main", "games", "chess", "game.json");
+  const cm = JSON.parse(readFileSync(cp, "utf8"));
+  cm.id = "ana/chess";
+  cm.name = "Ana Chess";
+  writeFileSync(cp, JSON.stringify(cm, null, 2));
+  writeFileSync(join(mono, "games-repo-main", "README.md"), "# games");
+  const monoTar = join(dir, "mono.tar.gz");
+  spawnSync("tar", ["-czf", monoTar, "-C", mono, "games-repo-main"]);
+  const monoBody = readFileSync(monoTar);
 
   registry = createServer((req, res) => {
     if (req.url === "/games.json") {
@@ -42,6 +61,14 @@ async function startRegistry(): Promise<void> {
               description: "a quiz",
               engine: "^0.1.0",
               tarball: `http://127.0.0.1:${registryPort}/quiz.tar.gz`,
+            },
+            {
+              id: "ana/chess",
+              name: "Ana Chess",
+              description: "from a monorepo",
+              engine: "^0.1.0",
+              tarball: `http://127.0.0.1:${registryPort}/mono.tar.gz`,
+              subdir: "games/chess",
             },
             {
               id: "ana/from-the-future",
@@ -58,6 +85,11 @@ async function startRegistry(): Promise<void> {
     if (req.url === "/quiz.tar.gz") {
       res.writeHead(200, { "content-type": "application/gzip" });
       res.end(body);
+      return;
+    }
+    if (req.url === "/mono.tar.gz") {
+      res.writeHead(200, { "content-type": "application/gzip" });
+      res.end(monoBody);
       return;
     }
     res.writeHead(404).end();
@@ -190,6 +222,33 @@ describe("in-party game browser", () => {
     const session = [...a.msgs].reverse().find((m) => m.type === "session") as any;
     expect(session.catalog.map((c: { id: string }) => c.id)).toContain("ana/quiz");
     expect(a.msgs.some((m) => m.type === "reload")).toBe(true);
+    a.close();
+  }, 40_000);
+
+  it("installs a game from a subdir of a monorepo tarball", async () => {
+    // The curated repo's actual shape: one tarball, many games, index says which.
+    const a = await new Client().connect(server!.port);
+    a.send({ type: "join", token: "tok-a", name: "Ana", role: "player" });
+    await settle();
+
+    a.send({ type: "registry.install", id: "ana/chess" });
+    const installed = await (async () => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20000) {
+        const hit = a.msgs.find(
+          (m) => m.type === "registry.status" && (m as any).state !== "installing",
+        );
+        if (hit) return hit as any;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      throw new Error("install never finished");
+    })();
+
+    expect(installed.state, installed.message).toBe("installed");
+    const session = [...a.msgs].reverse().find((m) => m.type === "session") as any;
+    expect(session.catalog.map((c: { id: string }) => c.id)).toContain("ana/chess");
+    // The sibling README at the repo root must not have been mistaken for the game.
+    expect(session.catalog.map((c: { id: string }) => c.id)).not.toContain("ana/quiz");
     a.close();
   }, 40_000);
 

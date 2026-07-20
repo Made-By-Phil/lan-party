@@ -241,11 +241,32 @@ sketch in two places worth recording.
     would be theatre. In-party installing is deliberately registry-only — whether code
     should run on the host is the machine owner's call, not a room's.
 
+## Blank install (2026-07-20)
+
+45. **No games ship with the framework** (user decision). Trivia, Blackjack and Boom
+    Grid moved to `Made-By-Phil/lan-party-games`; `games/` is gone from the package
+    and from `files`. This resolves the open question above by dissolving it — with
+    installation cheap and validated, "which games are bundled" stops being a design
+    question and becomes a choice at install time, which is where the user's
+    game-packs idea points anyway. A host is now a host and nothing else.
+
+46. **The curated repo is a monorepo, and the index points into it.** A registry entry
+    carries a `tarball` plus a `subdir`, so one download serves any game and there are
+    no per-game release artifacts to keep in sync. This is what decision 29 described
+    but the entry format could not express, so `subdir` was added.
+
+47. **An empty catalog is a first-class state, not an error.** The host prints how to
+    add a game instead of warning that the lobby is empty, and both lobbies show an
+    empty state that points at the browser. A fresh install with no games is the
+    normal starting point now, so it cannot read as broken.
+
+48. **Tests own their fixtures.** The suite used the bundled games as test data, which
+    silently coupled the engine's tests to a game collection that has now left the
+    repo. `tests/fixtures/games/{alpha,beta}` are minimal, well-behaved games owned by
+    the suite. Coupling tests to shipped content is how content becomes un-removable.
+
 ### Still open
 
-- **Which bundled games stay in the main package** once the curated repo exists. The
-  user's "game packs, or a completely blank install" idea points past this: bundling
-  becomes a choice at install time rather than a fixed set.
-- **The curated repo does not exist yet.** `Made-By-Phil/lan-party-games` is wired in
-  as the default registry and every code path is exercised against a local stand-in,
-  but until that repo is published `add <name>` will fail with a 404.
+- **`lan-party` is not published to npm.** `npx lan-party` does not work yet, and the
+  games repo's CI builds the engine from source because `dist/` is gitignored. First
+  publish is the unblocker for both.

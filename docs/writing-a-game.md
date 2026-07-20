@@ -4,6 +4,8 @@ This guide is self-contained: it is written so that a developer — human or LLM
 no other context about this repository can build a working game. The three bundled
 games are reference implementations; steal from them liberally.
 
+Reference games live in [lan-party-games](https://github.com/Made-By-Phil/lan-party-games) — clone it to read along:
+
 - `games/blackjack/` — turn-based phases with deadlines, per-turn order, dealer AI
 - `games/trivia/` — simultaneous timed rounds, hidden answers, data file (JSON)
 - `games/bomberman/` — real-time tick loop, TV-as-arena, phone-as-gamepad, canvas
