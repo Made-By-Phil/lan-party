@@ -113,3 +113,100 @@ Running log of design decisions and why they were made. Newest at the bottom.
     also caught a real SDK bug: external `--games-dir` folders couldn't resolve
     react — fixed by pointing esbuild's `nodePaths` at the framework's own
     node_modules.
+
+## Game distribution (2026-07-19)
+
+Design for downloading and installing third-party games. Nothing below is built
+yet; recorded before implementation because several choices are expensive to
+reverse once people depend on them.
+
+28. **Per-game build isolation is a prerequisite, not a nicety.** Verified
+    2026-07-19: a single syntax error in one game's `client.tsx` crashes the host
+    with an unhandled esbuild stack trace and the party never starts. `discoverGames`
+    is resilient per-game (bad manifest, missing entry) but `buildClientApp` compiles
+    every game in one pass, so any compile error is fatal. Decision 8's comment that
+    "one broken download shouldn't take the party down" is currently aspirational.
+    This is invisible while the author writes every game and becomes the top support
+    issue the moment strangers' code lands in the folder. Fix before shipping any
+    install path.
+
+29. **Official games live in a curated monorepo, not a federated registry.** One
+    repo, games as folders, one CI validating all of them against the engine; the
+    "registry index" is a generated `games.json` at its root. `add-game trivia`
+    fetches that subfolder at a pinned tag. Rationale: the bottleneck is curation
+    effort, not federation — an index of pointers to other people's repos multiplies
+    breakage without reducing review load. Federate later only if third-party volume
+    justifies it. A few games stay bundled in the main package so a fresh install is
+    playable with no network.
+
+30. **One installer path, pluggable resolvers.** `add-game trivia`,
+    `github:user/repo`, a tarball URL, and a local zip all resolve to the same
+    pipeline: fetch → verify → validate → unpack → atomic swap. Sources differ only
+    in how they produce a tarball. `validate` is one implementation shared by the
+    author-facing CLI command, the curated repo's CI, and the pre-swap install check.
+    Note the GitHub-zip wrinkle: archive contents are wrapped in `repo-name-branch/`,
+    so `game.json` sits one level too deep — detect and flatten, or every user hits it.
+
+31. **Installing a game is explicitly a trust decision, and is not faked.** Game
+    server code runs in the host Node process with full fs/network access
+    (decision 8), so `add-game <arbitrary-url>` is `curl | bash` with better
+    ergonomics. Decision 8's "no security" stance was about *players on a trusted
+    LAN*; downloading changes the threat model to *code from the internet*, and the
+    two shouldn't be conflated. Real Node sandboxing is a project in itself and a
+    half-measure that implies safety is worse than none. Therefore: curated source is
+    the default and frictionless; arbitrary sources require an explicit flag plus a
+    prompt naming what is about to run; installs pin by commit SHA, never a branch,
+    and are recorded in a lockfile.
+
+32. **`game.json` carries an `engine` compatibility range, added before third-party
+    games exist.** Without it, SDK changes break every third-party game silently with
+    no way to say "this game needs a newer host." Nearly free now, unfixable
+    retroactively — which is the entire reason it is decided at design time.
+
+33. **Drop-in install with atomic swap; revises decision 5's "restart required".**
+    Watch the games dir → debounce → build into a temp dir → swap only on success →
+    broadcast a reload over the existing WS hub. A failed build leaves the running
+    party untouched, which is the same mechanism decision 28 needs — one piece of
+    machinery, two problems. Swaps are queued until the lobby, never applied
+    mid-round. Reload is safe without warning players because identity is a
+    localStorage token (decision 3), so everyone rejoins their seat automatically.
+
+34. **Offline is the expected case, not the edge case.** A LAN party is exactly where
+    the uplink is someone's flaky router. Games are cached, `add-game` is designed to
+    run ahead of time, and `export`/`import` lets games travel on a USB stick.
+    Guests are already connected to the host, so peer-pull of the host's games is the
+    natural extension.
+
+35. **The CLI is plumbing; installing from the party is the real UX.** The host is in
+    a living room, not at a terminal. Browsing and installing from the shared screen
+    or the lead's phone rides the admin channel that already exists (decision 12).
+    Building only the CLI would leave installation a before-the-party activity.
+
+36. **Game ids get namespaced to survive strangers.** `mergeCatalogs` resolves
+    collisions as "user wins", which is right for a deliberate fork and wrong when two
+    unrelated authors both pick `trivia`. Namespace as `author/game`, or detect and
+    refuse at install time.
+
+37. **Decision 6 (one bundle, every game) has a known expiry.** Fine at a handful of
+    games; at fifty, every guest downloads all of them on join. Per-game lazy chunks
+    are the eventual answer, and the isolation work in 28 is the natural moment to
+    reconsider — see the open question below.
+
+### Open questions
+
+- **Isolation implementation, and whether it subsumes decision 6.** Cheap fix (a
+  per-game validation pass, exclude failures, then one combined bundle) versus
+  building each game as its own lazy chunk, which fixes isolation *and* bundle bloat
+  but supersedes decision 6 now rather than later. Biggest open call; the others are
+  mostly independent of it.
+- **Where installed games live, and precedence.** User-global (`~/.lan-party/games`,
+  so `add-game` works from any directory) versus project-local `./games`, and how
+  either orders against `--games-dir`.
+- **Whether namespacing is retrofitted to the three bundled games.** Renaming ids
+  orphans `history` entries in existing `session.json` files, which record `gameId`.
+  Either accept the orphaning, migrate on load, or namespace only new games.
+- **How the engine version is numbered** — tied to the package version, or an
+  independent integer SDK version that moves only on breaking SDK changes.
+- **Update granularity** — per-game tags or one repo-wide release tag for the curated
+  monorepo, and what happens when an update lands while a party is running.
+- **Which bundled games stay in the main package** once the curated repo exists.
