@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
@@ -20,11 +20,6 @@ const SDK_PATH = join(packageRoot(), "src/sdk.ts");
 const CONTROLS_PATH = join(packageRoot(), "src/controls.tsx");
 
 /**
- * Scan a games directory: every subfolder with a game.json is a candidate.
- * Invalid games are skipped with a warning, never fatal — one broken download
- * shouldn't take the party down.
- */
-/**
  * Validate a single game folder. Throws with a human-readable reason — used by
  * discovery (which downgrades it to a warning) and by the installer (which
  * refuses the install and shows it to the user).
@@ -39,16 +34,25 @@ export function loadGameDef(dir: string, folderName?: string): GameDef {
     throw new Error(`game.json is not valid JSON: ${(err as Error).message}`);
   }
   const manifest = validateManifest(raw, folderName ?? basename(dir));
-  const serverEntry = findEntry(dir, ["server.ts", "server.tsx"]);
-  const clientEntry = findEntry(dir, ["client.tsx", "client.ts"]);
-  if (!serverEntry || !clientEntry) throw new Error("missing server.ts or client.tsx");
-  const sharedEntry = findEntry(dir, ["shared.tsx", "shared.ts"]);
+  const serverEntry = findEntry(dir, "server", ["ts", "tsx"]);
+  const clientEntry = findEntry(dir, "client", ["tsx", "ts"]);
+  if (!serverEntry || !clientEntry) {
+    throw new Error(
+      "missing server.ts or client.tsx (a server/ or client/ folder with index.ts works too)",
+    );
+  }
+  const sharedEntry = findEntry(dir, "shared", ["tsx", "ts"]);
   if (manifest.displayMode === "shared-arena" && !sharedEntry) {
-    throw new Error('displayMode "shared-arena" requires a shared.tsx');
+    throw new Error('displayMode "shared-arena" requires a shared.tsx or shared/index.tsx');
   }
   return { manifest, dir, serverEntry, clientEntry, sharedEntry };
 }
 
+/**
+ * Scan a games directory: every subfolder with a game.json is a candidate.
+ * Invalid games are skipped with a warning, never fatal — one broken download
+ * shouldn't take the party down.
+ */
 export function discoverGames(gamesDir: string): GameDef[] {
   if (!existsSync(gamesDir)) return [];
   const defs: GameDef[] = [];
@@ -66,12 +70,28 @@ export function discoverGames(gamesDir: string): GameDef[] {
   return defs;
 }
 
-function findEntry(dir: string, names: string[]): string | null {
-  for (const n of names) {
-    const p = join(dir, n);
-    if (existsSync(p)) return p;
+/**
+ * Resolve one of a game's entry points, accepting either a flat file
+ * (`client.tsx`) or a folder (`client/index.tsx`). Games grow: bots, helpers,
+ * per-module tests. A game should be able to become a directory without the
+ * framework caring.
+ *
+ * Both forms present is an author mistake, not a precedence question — one of
+ * the two files is dead code and the author cannot tell which.
+ */
+function findEntry(dir: string, base: string, exts: string[]): string | null {
+  const hits: string[] = [];
+  for (const ext of exts) {
+    for (const rel of [`${base}.${ext}`, join(base, `index.${ext}`)]) {
+      const p = join(dir, rel);
+      if (existsSync(p) && statSync(p).isFile()) hits.push(p);
+    }
   }
-  return null;
+  if (hits.length > 1) {
+    const names = hits.map((h) => h.slice(dir.length + 1)).join(" and ");
+    throw new Error(`${names} both exist — keep one`);
+  }
+  return hits[0] ?? null;
 }
 
 const SEGMENT = /^[a-z0-9][a-z0-9-]*$/;
