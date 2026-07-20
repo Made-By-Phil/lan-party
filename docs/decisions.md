@@ -192,21 +192,60 @@ reverse once people depend on them.
     are the eventual answer, and the isolation work in 28 is the natural moment to
     reconsider — see the open question below.
 
-### Open questions
+### Resolved (2026-07-20, implemented)
 
-- **Isolation implementation, and whether it subsumes decision 6.** Cheap fix (a
-  per-game validation pass, exclude failures, then one combined bundle) versus
-  building each game as its own lazy chunk, which fixes isolation *and* bundle bloat
-  but supersedes decision 6 now rather than later. Biggest open call; the others are
-  mostly independent of it.
-- **Where installed games live, and precedence.** User-global (`~/.lan-party/games`,
-  so `add-game` works from any directory) versus project-local `./games`, and how
-  either orders against `--games-dir`.
-- **Whether namespacing is retrofitted to the three bundled games.** Renaming ids
-  orphans `history` entries in existing `session.json` files, which record `gameId`.
-  Either accept the orphaning, migrate on load, or namespace only new games.
-- **How the engine version is numbered** — tied to the package version, or an
-  independent integer SDK version that moves only on breaking SDK changes.
-- **Update granularity** — per-game tags or one repo-wide release tag for the curated
-  monorepo, and what happens when an update lands while a party is running.
-- **Which bundled games stay in the main package** once the curated repo exists.
+All questions above were settled by the user and built; what shipped differs from the
+sketch in two places worth recording.
+
+38. **Isolation keeps decision 6 intact — no lazy chunks.** Measured: 18 games rebuild
+    in 107ms. A full rebuild is cheaper than the machinery required to avoid one, so
+    installing a game rebuilds everything and clients reload. The rejected alternative,
+    an "adjacent bundle" for the newly installed game, would have shipped a second copy
+    of React in that chunk and broken hooks and context the moment a game rendered.
+    Isolation is instead a fast-path/probe: keep the single combined pass, and only on
+    failure compile each game alone to find the culprit. Decision 37's expiry still
+    stands, just not yet.
+
+39. **Installed games live in `./games`, full stop.** Rejected user-global
+    `~/.lan-party/games`: one location means one answer to "where did my game go", and
+    a party directory stays self-contained and copyable. `--games-dir` still redirects
+    the whole thing.
+
+40. **Engine version tracks the package version** (`0.1.0`), asserted by test so the
+    two cannot drift. Minor on release, major on breaking SDK change. npm's `0.x`
+    caret rule applies: while the engine is `0.x`, `^0.1.0` accepts `0.1.9` and
+    rejects `0.2.0`, because every minor bump may break games.
+
+41. **Namespacing was retrofitted and the orphaning accepted** (user decision) — this
+    predates any distribution, so it is the cheapest it will ever be. A bare id is
+    scoped to `local/` rather than rejected, keeping drop-in folders frictionless while
+    guaranteeing a local sketch can never shadow an installed game.
+
+42. **Repo-wide release tags; updates never forced.** Official games are validated as
+    part of the release cycle. A game updating mid-party changes nothing for the
+    running round: you keep playing.
+
+43. **The SDK gained `dispose()`, found by running the smoke test on our own games.**
+    Trivia and Blackjack create their own timers, the SDK had no teardown hook, and
+    `GameRunner.stop()` only cleared its own tick interval — so every abandoned round
+    leaked its pending timers, and "can this game be exited?" was unsatisfiable by any
+    game using a timer. The authoring guide had documented this leak as *harmless*.
+    `dispose()` is now called whenever a round ends, and `validate` fails a game still
+    holding the event loop open, so the rule is enforced rather than advised.
+
+44. **The trust boundary is the network, not the filesystem.** Curated registry installs
+    are frictionless (and are the only thing installable from inside a party); GitHub
+    and URL sources need `--trust` and say plainly that the game's server code will run
+    with full access to files and network. Local paths need nothing: you could copy the
+    folder into `games/` yourself and it would run just the same, so a prompt there
+    would be theatre. In-party installing is deliberately registry-only — whether code
+    should run on the host is the machine owner's call, not a room's.
+
+### Still open
+
+- **Which bundled games stay in the main package** once the curated repo exists. The
+  user's "game packs, or a completely blank install" idea points past this: bundling
+  becomes a choice at install time rather than a fixed set.
+- **The curated repo does not exist yet.** `Made-By-Phil/lan-party-games` is wired in
+  as the default registry and every code path is exercised against a local stand-in,
+  but until that repo is published `add <name>` will fail with a 404.
