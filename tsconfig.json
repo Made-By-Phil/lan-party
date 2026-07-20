@@ -14,7 +14,8 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "lan-party/sdk": ["./src/sdk.ts"]
+      "lan-party/sdk": ["./src/sdk.ts"],
+      "lan-party/sdk/controls": ["./src/controls.tsx"]
     }
   },
   "include": ["src", "shell", "games", "scripts", "tests"]

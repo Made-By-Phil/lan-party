@@ -14,7 +14,8 @@
     "src/"
   ],
   "exports": {
-    "./sdk": "./src/sdk.ts"
+    "./sdk": "./src/sdk.ts",
+    "./sdk/controls": "./src/controls.tsx"
   },
   "scripts": {
     "dev": "node src/cli.ts",
