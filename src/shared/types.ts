@@ -58,6 +58,11 @@ export interface GameManifest {
   /** Hz. 0 = event-driven (no tick loop). */
   tickRate: number;
   displayMode: DisplayMode;
+  /**
+   * Engine compatibility range, e.g. "^0.1.0". Absent means unstated, which is
+   * accepted but flagged by `validate` — games written before the field existed.
+   */
+  engine?: string;
 }
 
 // ---------------------------------------------------------------------------

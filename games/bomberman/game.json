@@ -6,5 +6,6 @@
   "maxPlayers": 8,
   "teams": "none",
   "tickRate": 20,
-  "displayMode": "shared-arena"
+  "displayMode": "shared-arena",
+  "engine": "^0.1.0"
 }

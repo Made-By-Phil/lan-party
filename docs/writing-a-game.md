@@ -51,9 +51,17 @@ The real file must be strict JSON (the comments below are annotation only):
   "maxPlayers": 8,
   "teams": "none",         // "none" | "optional" | "required"
   "tickRate": 0,           // 0 = event-driven; N>0 = host calls tick() N times/sec (max 60)
-  "displayMode": "device"  // "device" | "shared-arena" | "adaptive"
+  "displayMode": "device", // "device" | "shared-arena" | "adaptive"
+  "engine": "^0.1.0"       // which host versions this game works with
 }
 ```
+
+- `engine` — the host refuses to load a game that declares an incompatible range,
+  with a message telling the player to update rather than a mystery crash. Standard
+  npm range syntax (`^0.1.0`, `~0.1.0`, `>=0.1.0`, `0.1.x`, `*`). **While the engine
+  is `0.x`, a minor bump may break games**, so `^0.1.0` accepts `0.1.9` but not
+  `0.2.0` — that is npm's rule for `0.x` and the host follows it. Omitting the field
+  is accepted but flagged: your game will load until the day it silently doesn't.
 
 - `teams: "required"` — the lobby refuses to start unless every seated player is on a
   team and at least 2 teams are represented. `"none"` — your game never sees teams.

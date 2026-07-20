@@ -6,5 +6,6 @@
   "maxPlayers": 16,
   "teams": "optional",
   "tickRate": 0,
-  "displayMode": "adaptive"
+  "displayMode": "adaptive",
+  "engine": "^0.1.0"
 }

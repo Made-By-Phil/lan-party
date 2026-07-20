@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
+import { engineMismatch, satisfiesEngine } from "../engine.ts";
 import type { CreateGame } from "../sdk.ts";
 import type { GameManifest } from "../shared/types.ts";
 import { packageRoot } from "./paths.ts";
@@ -44,7 +45,8 @@ export function discoverGames(gamesDir: string): GameDef[] {
       }
       defs.push({ manifest, dir, serverEntry, clientEntry, sharedEntry });
     } catch (err) {
-      console.warn(`[lan-party] skipping game "${entry.name}": ${err}`);
+      const why = err instanceof Error ? err.message : String(err);
+      console.warn(`[lan-party] skipping game "${entry.name}": ${why}`);
     }
   }
   return defs;
@@ -59,6 +61,8 @@ function findEntry(dir: string, names: string[]): string | null {
 }
 
 function validateManifest(raw: any, folder: string): GameManifest {
+  const engine = typeof raw.engine === "string" && raw.engine.trim() ? raw.engine.trim() : undefined;
+  if (engine && !satisfiesEngine(engine)) throw new Error(engineMismatch(engine));
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : folder;
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;
@@ -80,6 +84,7 @@ function validateManifest(raw: any, folder: string): GameManifest {
     teams,
     tickRate: Math.min(60, num(raw.tickRate, 0)),
     displayMode,
+    engine,
   };
 }
 
