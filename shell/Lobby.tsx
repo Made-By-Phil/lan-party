@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { AdminOp, GameManifest, SessionState } from "../src/shared/types.ts";
+import { GameBrowser } from "./GameBrowser.tsx";
 import { store, useClient } from "./store.ts";
 import { LastResult, Scoreboard, teamOf } from "./ui.tsx";
 
@@ -110,6 +111,12 @@ export function Lobby() {
             );
           })}
         </div>
+        {/* Without a shared visual the lead is the only one who can add games. */}
+        {isLead && (
+          <div className="row lobby-add-games">
+            <GameBrowser />
+          </div>
+        )}
       </section>
 
       <TeamsSection isLead={isLead} />

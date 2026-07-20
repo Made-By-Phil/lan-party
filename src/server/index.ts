@@ -60,7 +60,15 @@ export async function startServer(cfg: ServerConfig): Promise<RunningServer> {
   }
 
   const session = Session.load(join(dataDir, "session.json"), cfg.fresh);
-  const hub = new Hub(session, defs, builtServers, { allowShared: cfg.allowShared });
+  const hub = new Hub(session, defs, builtServers, {
+    allowShared: cfg.allowShared,
+    install: {
+      gamesDir: userDir ?? join(cfg.cwd, "games"),
+      dataDir,
+      shellDir: join(root, "shell"),
+      refresh: () => rebuild(),
+    },
+  });
 
   // The served build directory is swapped, never mutated in place: a rebuild
   // lands in a new numbered dir and only becomes visible if it succeeded.

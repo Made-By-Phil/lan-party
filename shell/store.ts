@@ -4,6 +4,7 @@ import type {
   GameManifest,
   Player,
   PlayerInfo,
+  RegistryListing,
   Role,
   ServerMsg,
   SessionState,
@@ -28,6 +29,17 @@ export interface ClientState {
   sharedVisualAllowed: boolean;
   game: ActiveGame | null;
   toast: string | null;
+  registry: RegistryState;
+}
+
+export interface RegistryState {
+  open: boolean;
+  loading: boolean;
+  query: string;
+  games: RegistryListing[];
+  error: string | null;
+  /** gameId -> what the install is currently doing. */
+  status: Record<string, { state: "installing" | "installed" | "error"; message?: string }>;
 }
 
 const initial: ClientState = {
@@ -42,6 +54,7 @@ const initial: ClientState = {
   sharedVisualAllowed: true,
   game: null,
   toast: null,
+  registry: { open: false, loading: false, query: "", games: [], error: null, status: {} },
 };
 
 const LS = {
@@ -163,6 +176,28 @@ class Store {
       case "game.over":
         this.set({ game: null });
         break;
+      case "registry.results":
+        this.setRegistry({
+          loading: false,
+          games: msg.games,
+          error: msg.error ?? null,
+        });
+        break;
+      case "registry.status": {
+        const status = { ...this.state.registry.status, [msg.id]: { state: msg.state, message: msg.message } };
+        this.setRegistry({ status });
+        // Mark it installed in the list we're already showing, so the button
+        // settles even before the rebuild lands.
+        if (msg.state === "installed") {
+          this.setRegistry({
+            games: this.state.registry.games.map((g) =>
+              g.id === msg.id ? { ...g, installed: true } : g,
+            ),
+          });
+        }
+        if (msg.state === "error" && msg.message) this.showToast(msg.message);
+        break;
+      }
       case "reload":
         // The host rebuilt the bundle. Identity lives in localStorage, so a
         // reload drops everyone straight back into their seat.
@@ -233,6 +268,25 @@ class Store {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
+  }
+
+  private setRegistry(partial: Partial<RegistryState>): void {
+    this.set({ registry: { ...this.state.registry, ...partial } });
+  }
+
+  openRegistry(open: boolean): void {
+    this.setRegistry({ open });
+    if (open && this.state.registry.games.length === 0) this.searchRegistry("");
+  }
+
+  searchRegistry(query: string): void {
+    this.setRegistry({ query, loading: true, error: null });
+    this.send({ type: "registry.search", query });
+  }
+
+  installFromRegistry(id: string): void {
+    this.setRegistry({ status: { ...this.state.registry.status, [id]: { state: "installing" } } });
+    this.send({ type: "registry.install", id });
   }
 
   showToast(message: string): void {

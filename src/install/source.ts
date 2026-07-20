@@ -32,9 +32,13 @@ export interface GameSource {
 const BARE_ID = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?$/i;
 const GITHUB = /^github:([^/#]+)\/([^/#]+)(?:\/([^#]+))?(?:#(.+))?$/i;
 
-export const DEFAULT_REGISTRY =
-  process.env.LAN_PARTY_REGISTRY ??
-  "https://raw.githubusercontent.com/Made-By-Phil/lan-party-games/main";
+const CURATED = "https://raw.githubusercontent.com/Made-By-Phil/lan-party-games/main";
+
+/**
+ * Read at call time, not at import: a module-level constant would freeze
+ * whatever the environment happened to be when this file was first loaded.
+ */
+export const registryBase = (): string => process.env.LAN_PARTY_REGISTRY || CURATED;
 
 export function parseSource(spec: string): GameSource {
   const s = spec.trim();
@@ -91,7 +95,7 @@ export interface RegistryIndex {
   games: RegistryEntry[];
 }
 
-export async function fetchRegistry(base = DEFAULT_REGISTRY): Promise<RegistryIndex> {
+export async function fetchRegistry(base = registryBase()): Promise<RegistryIndex> {
   const url = `${base.replace(/\/$/, "")}/games.json`;
   let res: Response;
   try {
