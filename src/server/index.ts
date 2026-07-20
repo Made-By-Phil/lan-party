@@ -56,7 +56,10 @@ export async function startServer(cfg: ServerConfig): Promise<RunningServer> {
     console.warn(`[lan-party] skipping game "${f.id}": ${f.reason}`);
   }
   if (defs.length === 0) {
-    console.warn("[lan-party] no games found — the lobby will be empty.");
+    console.log(
+      "  No games installed yet. Add one with `lan-party add <name>`,\n" +
+        "  or from the shared screen once someone joins.",
+    );
   }
 
   const session = Session.load(join(dataDir, "session.json"), cfg.fresh);

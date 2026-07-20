@@ -10,10 +10,10 @@ describe("ENGINE_VERSION", () => {
     expect(ENGINE_VERSION).toBe(pkg.version);
   });
 
-  it("is declared by every bundled game", () => {
+  it("is declared by the fixture games", () => {
     const root = packageRoot();
-    for (const id of ["trivia", "blackjack", "bomberman"]) {
-      const m = JSON.parse(readFileSync(join(root, "games", id, "game.json"), "utf8"));
+    for (const id of ["alpha", "beta"]) {
+      const m = JSON.parse(readFileSync(join(root, "tests/fixtures/games", id, "game.json"), "utf8"));
       expect(m.engine, `${id} must declare an engine range`).toBeTruthy();
       expect(satisfiesEngine(m.engine), `${id} must accept the current engine`).toBe(true);
     }

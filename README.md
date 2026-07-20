@@ -32,13 +32,22 @@ acts as the arena for games that want it.
 Deliberate non-goals: no security, no internet play, no persistence beyond the party.
 It runs among trusted people in one room. See [docs/DESIGN.md](docs/DESIGN.md).
 
-## Bundled games
+## Games
 
-| Game | Players | Style | Where it renders |
-|---|---|---|---|
-| **Blackjack** | 1–7 | turn-based, 5 hands vs dealer AI | your phone (TV shows the table) |
-| **Trivia** | 1–16 | 10 timed questions, speed scoring | phone + TV question board |
-| **Boom Grid** | 2–8 | real-time bomberman-style arena, 20 Hz | TV is the arena, phones are gamepads (falls back to on-phone rendering) |
+**lan-party ships with no games.** You install the ones you want, so a host is a
+host and nothing else. The curated collection lives in
+[lan-party-games](https://github.com/Made-By-Phil/lan-party-games):
+
+```
+npx lan-party add trivia       10 timed questions, speed scoring        1–16
+npx lan-party add blackjack    5 hands against a dealer AI              1–7
+npx lan-party add bomberman    real-time arena at 20 Hz — TV is the     2–8
+                               board, phones are gamepads
+```
+
+You can also add games from a GitHub repo, a tarball URL, or a local folder — or
+just unzip one into `games/` and a running party will pick it up. See
+[Installing games](#installing-games).
 
 More are planned — see [ROADMAP.md](ROADMAP.md) (single-player sessions, bots, the
 next example game) and [BACKLOG.md](BACKLOG.md) for smaller deferred items.
@@ -49,7 +58,7 @@ next example game) and [BACKLOG.md](BACKLOG.md) for smaller deferred items.
 npx lan-party [options]
   --port <n>          Port (default 4700)
   --games-dir <path>  Extra games directory (default ./games if present).
-                      Merged with the bundled games; on an id clash, yours wins.
+                      Use this to point at a games folder somewhere else.
   --no-shared-visual  Never offer the shared-screen role on the connect screen
   --fresh             Ignore the saved session and start a new party
 ```
@@ -80,7 +89,8 @@ requires you to say so explicitly. Local paths don't — you could copy the fold
 **Read [docs/writing-a-game.md](docs/writing-a-game.md) first** — it is
 self-contained and written so that a developer or an LLM with no other context about
 this repo can produce a working game. (If you are an LLM that has been asked to build
-a game on this framework: that guide, plus the three bundled games as reference
+a game on this framework: that guide, plus the curated games at
+[lan-party-games](https://github.com/Made-By-Phil/lan-party-games) as reference
 implementations, is everything you need.)
 
 The short version — a game is a folder:
@@ -100,7 +110,8 @@ The server module receives actions (`onAction`), optionally a `tick(dt)` at
 the party ledger. Clients get `{ state, you, send, players, teams,
 sharedVisualPresent, ... }` and just render. Types come from `lan-party/sdk`.
 
-Drop the folder into `games/`, restart the host, and it's in the catalog. The
+Drop the folder into `games/` and a running host picks it up and reloads everyone —
+no restart, and never mid-round. The
 authoring contract is in [docs/writing-a-game.md](docs/writing-a-game.md); the
 architecture is in [docs/DESIGN.md](docs/DESIGN.md).
 
