@@ -44,7 +44,7 @@ The real file must be strict JSON (the comments below are annotation only):
 
 ```jsonc
 {
-  "id": "my-game",         // unique; convention: same as the folder name
+  "id": "you/my-game",     // namespaced "scope/name"; bare ids become "local/my-game"
   "name": "My Game",
   "description": "One line shown on the lobby card.",
   "minPlayers": 1,
@@ -56,6 +56,10 @@ The real file must be strict JSON (the comments below are annotation only):
 }
 ```
 
+- `id` — namespaced `scope/name`, lowercase letters, digits and dashes, so two
+  authors can both ship a `trivia`. A bare id is scoped to `local/` automatically:
+  dropping an unpublished folder into `games/` stays frictionless, and a local sketch
+  can never shadow an installed game. Players never see the id — only `name`.
 - `engine` — the host refuses to load a game that declares an incompatible range,
   with a message telling the player to update rather than a mystery crash. Standard
   npm range syntax (`^0.1.0`, `~0.1.0`, `>=0.1.0`, `0.1.x`, `*`). **While the engine

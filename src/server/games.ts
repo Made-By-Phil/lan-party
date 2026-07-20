@@ -60,10 +60,32 @@ function findEntry(dir: string, names: string[]): string | null {
   return null;
 }
 
+const SEGMENT = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Game ids are namespaced `scope/name` (decision 36) so two unrelated authors
+ * can both ship a "trivia" without colliding.
+ *
+ * A bare id is scoped to `local/`, which keeps dropping an unpublished folder
+ * into games/ frictionless while still guaranteeing every id is namespaced —
+ * so a local sketch can never shadow an installed game by accident.
+ */
+export function normalizeGameId(raw: unknown, folder: string): string {
+  const input = (typeof raw === "string" && raw.trim() ? raw.trim() : folder).toLowerCase();
+  const parts = input.split("/");
+  if (parts.length === 1) parts.unshift("local");
+  if (parts.length !== 2 || !parts.every((p) => SEGMENT.test(p))) {
+    throw new Error(
+      `invalid id "${input}" — use "scope/name" with lowercase letters, digits and dashes`,
+    );
+  }
+  return parts.join("/");
+}
+
 function validateManifest(raw: any, folder: string): GameManifest {
   const engine = typeof raw.engine === "string" && raw.engine.trim() ? raw.engine.trim() : undefined;
   if (engine && !satisfiesEngine(engine)) throw new Error(engineMismatch(engine));
-  const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : folder;
+  const id = normalizeGameId(raw.id, folder);
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;
   const teams = ["none", "optional", "required"].includes(raw.teams)

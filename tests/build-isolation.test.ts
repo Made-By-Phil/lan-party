@@ -55,12 +55,12 @@ describe("buildGames isolation", () => {
     const buildDir = join(gamesDir, ".build");
     const report = await buildGames(discoverGames(gamesDir), shellDir, buildDir);
 
-    expect(report.ok.map((d) => d.manifest.id).sort()).toEqual(["alpha", "beta"]);
-    expect(report.failed.map((f) => f.id)).toEqual(["broken"]);
+    expect(report.ok.map((d) => d.manifest.id).sort()).toEqual(["local/alpha", "local/beta"]);
+    expect(report.failed.map((f) => f.id)).toEqual(["local/broken"]);
     expect(report.failed[0]!.reason).toMatch(/unclosed|Unexpected end/i);
     // A dropped game must not leave a loadable server behind.
-    expect(report.builtServers.has("broken")).toBe(false);
-    expect(report.builtServers.has("alpha")).toBe(true);
+    expect(report.builtServers.has("local/broken")).toBe(false);
+    expect(report.builtServers.has("local/alpha")).toBe(true);
   });
 
   it("drops a game whose server will not compile", async () => {
@@ -73,8 +73,8 @@ describe("buildGames isolation", () => {
       shellDir,
       join(gamesDir, ".build"),
     );
-    expect(report.ok.map((d) => d.manifest.id)).toEqual(["alpha"]);
-    expect(report.failed.map((f) => f.id)).toEqual(["badserver"]);
+    expect(report.ok.map((d) => d.manifest.id)).toEqual(["local/alpha"]);
+    expect(report.failed.map((f) => f.id)).toEqual(["local/badserver"]);
   });
 
   it("keeps games that import CSS — probing must not reject them", async () => {
@@ -90,8 +90,8 @@ describe("buildGames isolation", () => {
       shellDir,
       join(gamesDir, ".build"),
     );
-    expect(report.ok.map((d) => d.manifest.id)).toEqual(["styled"]);
-    expect(report.failed.map((f) => f.id)).toEqual(["broken"]);
+    expect(report.ok.map((d) => d.manifest.id)).toEqual(["local/styled"]);
+    expect(report.failed.map((f) => f.id)).toEqual(["local/broken"]);
   });
 
   it("still builds a working bundle when every game is fine", async () => {
