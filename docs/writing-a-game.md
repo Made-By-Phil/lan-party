@@ -33,8 +33,8 @@ everyone, never mid-round:
 ```
 games/my-game/
   game.json     manifest (required)
-  server.ts     game rules, runs on the host in Node (required)
-  client.tsx    React UI on each player's device (required)
+  server.ts     game rules, runs on the host in Node (required; or server/index.ts)
+  client.tsx    React UI on each player's device (required; or client/index.tsx)
   shared.tsx    React UI on the shared visual (optional*)
   anything else you want to import: helpers, data.json, styles.css
 ```
@@ -164,6 +164,111 @@ export default function createGame(ctx: GameContext): GameServer {
 8. `getPlayerState` is called per seated player; `getSharedState` result is
    shallow-merged **over** public state for the TV only.
 
+## Bots
+
+**Bots belong to your game, not to the framework.** There is no bot player type, no
+bot in the roster, and no framework seating for them. That is deliberate: what a bot
+*is* differs per game — a seat at a table, a colour on a grid, a second hand — and a
+framework abstraction would fit none of them well.
+
+The contract:
+
+- **Bots never touch the party ledger.** `ctx.end({ pointsByPlayer })` accepts real
+  player ids only. Points for a bot id are meaningless: a bot has no seat in the
+  lobby, no name in the scoreboard, and no history.
+- **Bots do appear in the round's own standings.** Your public state can rank bots
+  alongside players so the results screen tells the truth about who won the round.
+  That ranking dies with the round; only players' points survive it.
+- **Your game decides how bots take seats.** The framework hands you
+  `ctx.players` — the real, seated humans. Anything else at the table is yours to
+  invent. The usual pattern: fill remaining seats up to the requested bot count.
+
+```ts
+const wanted = ctx.settings.bots as number;
+const seats = [
+  ...ctx.players.map((p) => ({ kind: "player" as const, id: p.id, name: p.name })),
+  ...Array.from({ length: wanted }, (_, i) => ({
+    kind: "bot" as const,
+    id: `bot:${i}`,      // namespaced so it can never collide with a player token
+    name: BOT_NAMES[i],
+  })),
+];
+```
+
+Namespacing bot ids (`bot:0`) matters: player ids are opaque client tokens, and an
+un-prefixed `"1"` could one day collide. It also makes the filter at the end obvious:
+
+```ts
+const pointsByPlayer = Object.fromEntries(
+  standings
+    .filter((s) => !s.id.startsWith("bot:"))   // bots score nothing in the party
+    .map((s) => [s.id, s.points]),
+);
+ctx.end({ pointsByPlayer, summary });          // summary may still name a bot as winner
+```
+
+Two things to get right:
+
+- **Bots must not stall the round.** If a bot acts on a timer, that timer is yours to
+  clear in `dispose()` like any other. If a bot's turn resolves instantly, still route
+  it through the same state machine as a human's turn — a separate "bot path" is where
+  divergence bugs live.
+- **Bot difficulty is a setting, not a constant.** If you find yourself tuning a
+  magic number, it belongs in `game.json`.
+
+## Structuring a game as it grows
+
+A game starts as three files and that is fine. When it outgrows them, **any entry
+point can become a folder** — the host accepts `client.tsx` *or* `client/index.tsx`,
+and the same for `server` and `shared`:
+
+```
+games/my-game/
+  game.json
+  server/
+    index.ts          default-exports createGame — the entry point
+    rules.ts          pure game logic
+    bots.ts           bot heuristics
+    bots.test.ts      tests, beside the code they cover
+  client/
+    index.tsx         default-exports the React component
+    Board.tsx
+  shared.tsx          still flat — mix and match freely
+  styles.css
+```
+
+Declaring both `client.tsx` and `client/index.tsx` is an error rather than a
+precedence rule: one of them would be dead code and you could not tell which.
+
+## Testing your game's mechanics
+
+Files a game never imports — `*.test.ts` next to the code — are invisible to the
+build, so tests can live wherever they are most useful.
+
+The framework gives you two testing tools, and they answer different questions:
+
+| | question | run it |
+|---|---|---|
+| `lan-party validate <dir>` | does it build, survive junk input, and let go? | before install, in CI |
+| your own `*.test.ts` | are the *rules* right? | while writing the game |
+
+`validate` will never catch a scoring bug. Unit tests are where game logic is
+actually pinned down, and they pay off most for exactly the things bots need:
+
+- **Keep rules pure.** A function from `(state, action) → state` is testable without
+  a host, a socket, or a timer. Push side effects to the edges.
+- **Inject randomness.** A shuffle or a bot's dice roll should take an RNG argument
+  so a test can pass a seeded one. `Math.random()` inside your rules makes the
+  interesting cases untestable.
+- **Test the bot as a decision function.** `decide(hand, upcard) → "hit" | "stand"`
+  is a table of cases; a bot wired into a live round is not.
+- **Test both extremes of every numeric setting.** A game that works at `rounds: 10`
+  and breaks at `rounds: 1` passes `validate` and fails at the party.
+
+The curated collection ([lan-party-games](https://github.com/Made-By-Phil/lan-party-games))
+runs `vitest` across every game, so a game placed there gets its tests run in CI.
+For a standalone game, any test runner works — nothing in the framework depends on it.
+
 ## client.tsx and shared.tsx
 
 Each default-exports a React component receiving `GameClientProps`:
@@ -272,11 +377,7 @@ game whose `settings` block is malformed, and `lan-party validate` reports it. T
 smoke test runs your game with its declared defaults, so defaults that crash your game
 never reach a party.
 
-> **Bots**: a `bots` number setting is the right way to *ask* for them, but the
-> framework has no bot players — a bot is not in the roster and cannot be scored as a
-> player. Today a game implements bots internally: read the setting and simulate them
-> in your own state (Blackjack's dealer works this way). Framework-level bots are a
-> separate feature.
+A `bots` number setting is the usual way to ask for bots — see [Bots](#bots).
 
 ### Shared controls (`lan-party/sdk/controls`)
 
@@ -363,6 +464,8 @@ hand you control exactly, a disconnect mid-turn not stalling the round, and
 
 - [ ] `lan-party validate <your-folder>` passes (builds, runs, and lets go)
 - [ ] any tunable constant is a `settings` entry, not a magic number in source
+- [ ] bots (if any) score nothing in `pointsByPlayer`, but do rank in the round
+- [ ] rules are pure and RNG is injected, so the mechanics have real tests
 - [ ] game plays correctly at both extremes of every numeric setting
 - [ ] `game.json` valid; id namespaced `scope/name`; `engine` range declared;
       `shared.tsx` present if `shared-arena`

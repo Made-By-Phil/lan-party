@@ -305,3 +305,32 @@ sketch in two places worth recording.
     internally today (Blackjack's dealer already does). Real bot *players* — in the
     roster, seated, scored in the ledger — need a seating and actor mechanism that
     does not exist yet, and is deliberately not implied by this feature.
+
+## Bots and game structure (2026-07-20)
+
+55. **Bots are per-game and never enter the party** (user decision, refining 54).
+    There is no bot player type, no bot in the roster, no framework seating. What a
+    bot *is* differs per game — a seat at a table, a colour on a grid, a second hand —
+    and a framework abstraction would fit none of them well. Bots rank in the round's
+    own standings so the results screen tells the truth about who won, but only real
+    players' points reach `ctx.end`, and that ranking dies with the round.
+
+56. **Seating is the game's business.** The framework hands over `ctx.players`, the
+    real humans; filling the remaining seats up to a requested bot count is a game
+    concern. This is what makes seat-order games (poker, or a Blackjack where players
+    choose where to sit) expressible without the framework knowing what a seat is.
+    Convention: namespace bot ids (`bot:0`) so they can never collide with a player's
+    opaque token, and so the filter before `ctx.end` is self-evident.
+
+57. **Any entry point may be a folder.** `client/index.tsx` and `server/index.ts` are
+    accepted alongside the flat forms, so a game can grow modules — bots, rules,
+    tests — without the framework caring. Declaring both forms is an error rather
+    than a precedence rule: one file would be dead code and the author could not tell
+    which. Files a game never imports are invisible to the build, so tests live beside
+    the code they cover.
+
+58. **`validate` and unit tests answer different questions, and both are documented.**
+    `validate` asks "does it build, survive junk, and let go" — it will never catch a
+    scoring bug. Game rules get pinned down by the game's own tests, which is why the
+    guidance is to keep rules pure and inject RNG: a bot is only testable as a
+    decision function, not as something wired into a live round.
