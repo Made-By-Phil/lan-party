@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
 import { engineMismatch, satisfiesEngine } from "../engine.ts";
 import type { CreateGame } from "../sdk.ts";
+import { validateSettingSpecs } from "../shared/settings.ts";
 import type { GameManifest } from "../shared/types.ts";
 import { packageRoot } from "./paths.ts";
 
@@ -120,6 +121,7 @@ function validateManifest(raw: any, folder: string): GameManifest {
     tickRate: Math.min(60, num(raw.tickRate, 0)),
     displayMode,
     engine,
+    settings: validateSettingSpecs(raw.settings),
   };
 }
 

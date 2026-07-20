@@ -43,6 +43,8 @@ export interface SessionState {
   votes: Record<string, string>;
   history: GameResultEntry[];
   activeGameId: string | null;
+  /** gameId -> chosen values. Visible to everyone: you should know what you're voting for. */
+  settings: Record<string, GameSettings>;
 }
 
 /** A curated-registry game as offered to the lobby browser. */
@@ -55,6 +57,46 @@ export interface RegistryListing {
   /** Its engine range accepts this host. */
   compatible: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Game settings: declared as data in game.json, never as code. The manifest
+// already reaches every client in the catalog, so the shell renders a generic
+// form with no game-side UI, and the host validates values without running
+// game code.
+// ---------------------------------------------------------------------------
+
+export type SettingValue = number | boolean | string;
+
+interface SettingBase {
+  key: string;
+  label: string;
+  /** One line under the control. */
+  help?: string;
+}
+
+export interface NumberSetting extends SettingBase {
+  type: "number";
+  default: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface BooleanSetting extends SettingBase {
+  type: "boolean";
+  default: boolean;
+}
+
+export interface SelectSetting extends SettingBase {
+  type: "select";
+  default: string;
+  options: { value: string; label: string }[];
+}
+
+export type SettingSpec = NumberSetting | BooleanSetting | SelectSetting;
+
+/** Resolved values for one game: every declared key, always present. */
+export type GameSettings = Record<string, SettingValue>;
 
 export type TeamsRequirement = "none" | "optional" | "required";
 export type DisplayMode = "device" | "shared-arena" | "adaptive";
@@ -74,6 +116,8 @@ export interface GameManifest {
    * accepted but flagged by `validate` — games written before the field existed.
    */
   engine?: string;
+  /** Knobs the party can set before a round. Rendered generically by the shell. */
+  settings?: SettingSpec[];
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +133,8 @@ export type AdminOp =
   | { op: "assignTeam"; playerId: string; teamId: string | null }
   | { op: "autoBalance"; teamCount: number }
   | { op: "startGame"; gameId: string }
+  | { op: "setSetting"; gameId: string; key: string; value: SettingValue }
+  | { op: "resetSettings"; gameId: string }
   | { op: "endGame" };
 
 export type ClientMsg =

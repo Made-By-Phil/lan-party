@@ -1,6 +1,6 @@
 import type { GameContext, GameServer } from "lan-party/sdk";
 
-/** Minimal well-behaved game: validates input, holds no timers, ends on demand. */
+/** Minimal well-behaved game that echoes the settings it was handed. */
 export default function createGame(ctx: GameContext): GameServer {
   let clicks = 0;
   return {
@@ -11,7 +11,7 @@ export default function createGame(ctx: GameContext): GameServer {
       }
     },
     getPublicState() {
-      return { label: "beta", clicks };
+      return { label: "beta", clicks, settings: ctx.settings };
     },
   };
 }

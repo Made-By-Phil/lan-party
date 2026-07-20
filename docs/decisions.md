@@ -270,3 +270,38 @@ sketch in two places worth recording.
 - **`lan-party` is not published to npm.** `npx lan-party` does not work yet, and the
   games repo's CI builds the engine from source because `dist/` is gitignored. First
   publish is the unblocker for both.
+
+## Game settings (2026-07-20)
+
+49. **Settings are declared as data in `game.json`, never as code** (user request for
+    per-game parameters). The manifest already reaches every client in the catalog, so
+    the shell renders a generic form with zero game-side UI, and the host validates
+    values without executing game code. Declaring them in `server.ts` would have meant
+    a round-trip for the client to learn the schema and running game code for the host
+    to police it.
+
+50. **Three control types: number, boolean, select.** Free text is deliberately
+    excluded — party settings are knobs, and a text field is an unbounded validation
+    surface for no gain. Twelve settings maximum: past that a game wants a mode
+    `select`, not more switches.
+
+51. **The host coerces; the game trusts.** Every declared key is present in
+    `ctx.settings`, clamped to range, snapped to step, and guaranteed to be one of the
+    declared options. Games never re-default or re-validate — if a game writes
+    `?? 10`, that 10 belonged in the manifest. Clients are untrusted here as
+    everywhere: an out-of-range or off-menu value is ignored rather than stored.
+
+52. **Settings are locked once a round starts.** Read at `createGame` and fixed for
+    the round; changing the rules under a game in flight is never intended. The UI
+    disables the controls and the host refuses the op, so the two cannot disagree.
+
+53. **A malformed settings block refuses the game.** Consistent with the rest of
+    manifest validation: it is an author error, caught by `validate` before install
+    rather than surfacing as a broken form at a party. The smoke test also runs each
+    game with its declared defaults, so defaults that crash a game never ship.
+
+54. **Bots are a setting, not a framework feature — for now.** A `bots` number is the
+    right way for a game to ask, and a host-authoritative game can simulate them
+    internally today (Blackjack's dealer already does). Real bot *players* — in the
+    roster, seated, scored in the ledger — need a seating and actor mechanism that
+    does not exist yet, and is deliberately not implied by this feature.
