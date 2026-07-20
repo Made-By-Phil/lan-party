@@ -154,6 +154,21 @@ section { margin: 20px 0; }
 }
 .game-title { font-weight: 700; }
 .game-viewport { flex: 1; display: flex; flex-direction: column; }
+/* In-party game browser */
+.game-browser { width: 100%; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.game-browser.big { max-width: 640px; }
+.browser-head { align-items: center; }
+.game-browser input { flex: 1; }
+.browser-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.browser-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+.browser-info { flex: 1; min-width: 0; }
+.browser-info p { margin: 2px 0 0; }
+.lobby-add-games { margin-top: 12px; }
+
 .big-screen-hint {
   padding: 7px 14px; text-align: center;
   font-size: 0.85rem; color: var(--muted);

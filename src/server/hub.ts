@@ -1,9 +1,13 @@
 import type { WebSocket } from "ws";
+import { satisfiesEngine } from "../engine.ts";
+import { installGame } from "../install/install.ts";
+import { fetchRegistry, findEntry, type RegistryIndex } from "../install/source.ts";
 import type { GameResults } from "../sdk.ts";
 import type {
   AdminOp,
   ClientMsg,
   PlayerInfo,
+  RegistryListing,
   Role,
   ServerMsg,
 } from "../shared/types.ts";
@@ -19,8 +23,18 @@ interface Conn {
   debugAddr?: string;
 }
 
+export interface InstallHooks {
+  gamesDir: string;
+  dataDir: string;
+  shellDir: string;
+  /** Rebuild and swap after a successful install. */
+  refresh: () => Promise<void>;
+}
+
 export interface HubOptions {
   allowShared: boolean;
+  /** Absent means in-party installing is unavailable (e.g. in tests). */
+  install?: InstallHooks;
 }
 
 /**
@@ -49,8 +63,39 @@ export class Hub {
     session.onChange = () => this.broadcastSession();
   }
 
+  private pendingReload: string | null = null;
+  private registryCache: { index: RegistryIndex; at: number } | null = null;
+
   get sharedVisualPresent(): boolean {
     return [...this.conns].some((c) => c.role === "shared");
+  }
+
+  /** Swap in a freshly built catalog. The running round, if any, is untouched. */
+  setGames(defs: GameDef[], builtServers: Map<string, string>): void {
+    this.defs = defs;
+    this.builtServers = builtServers;
+    this.broadcastSession();
+  }
+
+  /**
+   * Ask every client to reload. Held until the lobby: interrupting a round to
+   * pick up a game nobody is playing yet is never worth it (decision 33).
+   */
+  requestReload(reason: string): void {
+    if (this.session.phase !== "lobby") {
+      this.pendingReload = reason;
+      return;
+    }
+    this.pendingReload = null;
+    this.broadcast({ type: "reload", reason });
+  }
+
+  private flushPendingReload(): void {
+    if (this.pendingReload && this.session.phase === "lobby") {
+      const reason = this.pendingReload;
+      this.pendingReload = null;
+      this.broadcast({ type: "reload", reason });
+    }
   }
 
   catalog() {
@@ -124,6 +169,94 @@ export class Hub {
     }
     if (conn.role === "shared" && msg.type === "lobby.admin") {
       return this.handleAdmin(conn, msg.admin);
+    }
+    // Browsing and installing follow the same permission as admin ops: the
+    // shared visual, or the party lead when there isn't one (decision 12).
+    if (msg.type === "registry.search" || msg.type === "registry.install") {
+      if (!this.canAdmin(conn)) return;
+      if (msg.type === "registry.search") return void this.handleSearch(conn, msg.query);
+      return void this.handleInstall(conn, msg.id);
+    }
+  }
+
+  private canAdmin(conn: Conn): boolean {
+    if (conn.role === "shared") return true;
+    return !!conn.playerId && this.session.isLead(conn.playerId);
+  }
+
+  private async handleSearch(conn: Conn, query?: string): Promise<void> {
+    if (!this.opts.install) {
+      return this.send(conn, {
+        type: "registry.results",
+        games: [],
+        error: "Installing games is not available on this host.",
+      });
+    }
+    try {
+      const index = await this.registryIndex();
+      const q = (query ?? "").trim().toLowerCase();
+      const games: RegistryListing[] = index.games
+        .filter((g) =>
+          !q ? true : `${g.id} ${g.name ?? ""} ${g.description ?? ""}`.toLowerCase().includes(q),
+        )
+        .slice(0, 40)
+        .map((g) => ({
+          id: g.id,
+          name: g.name ?? g.id,
+          description: g.description ?? "",
+          installed: this.defs.some((d) => d.manifest.id === g.id),
+          compatible: satisfiesEngine(g.engine),
+        }));
+      this.send(conn, { type: "registry.results", games });
+    } catch (err) {
+      this.send(conn, {
+        type: "registry.results",
+        games: [],
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /** Cached briefly: a room of people tapping search shouldn't hammer the index. */
+  private async registryIndex(): Promise<RegistryIndex> {
+    const now = Date.now();
+    if (this.registryCache && now - this.registryCache.at < 5 * 60_000) {
+      return this.registryCache.index;
+    }
+    const index = await fetchRegistry();
+    this.registryCache = { index, at: now };
+    return index;
+  }
+
+  private async handleInstall(conn: Conn, id: string): Promise<void> {
+    const hooks = this.opts.install;
+    if (!hooks) {
+      return this.send(conn, {
+        type: "registry.status",
+        id,
+        state: "error",
+        message: "Installing games is not available on this host.",
+      });
+    }
+    this.broadcast({ type: "registry.status", id, state: "installing" });
+    try {
+      // Registry ids only. Arbitrary URLs are deliberately not installable from
+      // the room: --trust is a decision for whoever owns the machine.
+      const entry = findEntry(await this.registryIndex(), id);
+      await installGame(entry.id, {
+        gamesDir: hooks.gamesDir,
+        dataDir: hooks.dataDir,
+        shellDir: hooks.shellDir,
+      });
+      await hooks.refresh();
+      this.broadcast({ type: "registry.status", id, state: "installed" });
+    } catch (err) {
+      this.broadcast({
+        type: "registry.status",
+        id,
+        state: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -293,6 +426,8 @@ export class Hub {
     };
     this.session.recordResult(entry);
     this.broadcast({ type: "game.over", results: entry });
+    // Back in the lobby: now is the moment a queued reload is harmless.
+    this.flushPendingReload();
   }
 
   // ---- broadcasting ------------------------------------------------------

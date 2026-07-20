@@ -45,6 +45,17 @@ export interface SessionState {
   activeGameId: string | null;
 }
 
+/** A curated-registry game as offered to the lobby browser. */
+export interface RegistryListing {
+  id: string;
+  name: string;
+  description: string;
+  /** Already present in this party's catalog. */
+  installed: boolean;
+  /** Its engine range accepts this host. */
+  compatible: boolean;
+}
+
 export type TeamsRequirement = "none" | "optional" | "required";
 export type DisplayMode = "device" | "shared-arena" | "adaptive";
 
@@ -58,6 +69,11 @@ export interface GameManifest {
   /** Hz. 0 = event-driven (no tick loop). */
   tickRate: number;
   displayMode: DisplayMode;
+  /**
+   * Engine compatibility range, e.g. "^0.1.0". Absent means unstated, which is
+   * accepted but flagged by `validate` — games written before the field existed.
+   */
+  engine?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +97,9 @@ export type ClientMsg =
   | { type: "lobby.vote"; gameId: string | null }
   | { type: "lobby.joinTeam"; teamId: string | null }
   | { type: "lobby.admin"; admin: AdminOp }
+  /** Browse the curated registry from the party (lead or shared visual only). */
+  | { type: "registry.search"; query?: string }
+  | { type: "registry.install"; id: string }
   | { type: "game.action"; action: unknown }
   /**
    * Client-side failure forwarded to the host console. Guests are on phones with
@@ -108,4 +127,13 @@ export type ServerMsg =
       seated: PlayerInfo[];
     }
   | { type: "game.over"; results: GameResultEntry }
+  /** The game bundle changed; reload to pick it up. Never sent mid-round. */
+  | { type: "reload"; reason?: string }
+  | { type: "registry.results"; games: RegistryListing[]; error?: string }
+  | {
+      type: "registry.status";
+      id: string;
+      state: "installing" | "installed" | "error";
+      message?: string;
+    }
   | { type: "error"; message: string; code?: "kicked" | "shared-unavailable" };

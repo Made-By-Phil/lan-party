@@ -1,5 +1,6 @@
 import type { AdminOp } from "../src/shared/types.ts";
 import type { GameRegistry } from "./boot.tsx";
+import { GameBrowser } from "./GameBrowser.tsx";
 import { buildGameApi, EndRoundButton } from "./GameHost.tsx";
 import { startBlocker } from "./Lobby.tsx";
 import { store, useClient } from "./store.ts";
@@ -71,6 +72,7 @@ export function SharedLobby() {
           <div className="row">
             <button className="ghost small" onClick={() => admin({ op: "createTeam" })}>+ Add team</button>
             <button className="ghost small" onClick={() => admin({ op: "autoBalance", teamCount: 2 })}>⚖ Auto-balance teams</button>
+            <GameBrowser big />
           </div>
         </section>
       </div>

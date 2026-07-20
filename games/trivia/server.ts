@@ -182,6 +182,11 @@ export default function createGame(ctx: GameContext): GameServer {
   startQuestion();
 
   return {
+    dispose() {
+      ended = true;
+      clearTimers();
+    },
+
     onAction(playerId, action) {
       if (ended || phase !== "question") return;
       if (!action || typeof action !== "object" || action.type !== "answer") return;
