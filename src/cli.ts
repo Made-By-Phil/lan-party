@@ -21,7 +21,8 @@ Usage:
   lan-party add <source>           Install a game into ./games
   lan-party list                   List installed games
   lan-party remove <id>            Uninstall a game
-  lan-party validate <path>        Check a game folder builds and runs
+  lan-party validate <path>        Typecheck, build, and run a game at its
+                                   setting extremes
 
 Server options:
   --port <n>          Port to listen on (default 4700)
@@ -46,6 +47,10 @@ add options:
                       access to your files and network — only pass this for
                       sources you actually trust.
   --skip-smoke        Build and validate, but skip the runtime smoke test
+
+validate options:
+  --quick             Skip the typecheck and the setting-extremes runs
+  --skip-smoke        Build and typecheck only
 `;
 
 const root = packageRoot();
@@ -159,6 +164,9 @@ async function cmdValidate(args: string[]): Promise<void> {
   try {
     const { def, warnings } = await validateGameDir(dir, shellDir, {
       skipSmoke: args.includes("--skip-smoke"),
+      // The authoring/CI check is the thorough one: typecheck plus every
+      // numeric setting at its edges. Installs stay fast.
+      thorough: !args.includes("--quick"),
     });
     for (const w of warnings) console.warn(`! ${w}`);
     console.log(`✓ ${def.manifest.name} (${def.manifest.id}) builds and runs`);

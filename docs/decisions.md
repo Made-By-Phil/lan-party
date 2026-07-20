@@ -334,3 +334,46 @@ sketch in two places worth recording.
     scoring bug. Game rules get pinned down by the game's own tests, which is why the
     guidance is to keep rules pure and inject RNG: a bot is only testable as a
     decision function, not as something wired into a live round.
+
+## Validation tightened after a guide experiment (2026-07-20)
+
+59. **The guide was tested by having an agent build five games from it alone, and the
+    results drove both the guide and the validator.** Every game followed the rules
+    the guide states plainly — `dispose()` where timers exist, engine declared,
+    settings used, ids namespaced — and every game shipped defects in the areas the
+    guide left to inference. That is the useful signal: the gaps were not where the
+    guide was silent, but where it was *ambiguous*.
+
+60. **`validate` typechecks the game.** esbuild strips types without checking them, so
+    two games shipped with hard type errors — a `dir` widened to `string`, a client
+    reading a field its own type never declared — and passed every check we had. The
+    single highest-yield addition, and deterministic. TypeScript is resolved from the
+    framework's install; if absent, the step is skipped with a warning rather than
+    failing.
+
+61. **`validate` runs every numeric setting at its min and max.** Three games shipped
+    bugs visible only at an extreme: a winner scoring 10 instead of 95, points
+    reaching 200, a round taking 110 minutes. The defaults-only smoke test waved all
+    three through. Installs stay on defaults for speed; `validate` (authoring and CI)
+    is the thorough one, `--quick` opts out.
+
+62. **`validate` reports what a snapshot costs on the wire.** A real-time game was
+    sending 8.7 KB ten times a second to every device — ~0.8 MB/s across a full party
+    — because the guide only asked for state to be "reasonably compact". A warning
+    above ~2 KB, scaled by tick rate. A warning, not a failure: some games legitimately
+    carry a big board, and the author is better placed to judge.
+
+63. **Scoring guidance changed from a range to a rule.** "Roughly 0–100 per round" was
+    read by two independent games as "distribute a 100-point pool", which makes winning
+    an 8-player game worth less than losing a 2-player one. It now states that 0–100 is
+    per player, that the winner should land near 100 regardless of player count, and
+    that scores must be normalised against settings — with the two real failure shapes
+    written out.
+
+64. **What automated validation still cannot do.** It cannot know what winning means:
+    a game stored the judge's pick and never read it, so the winner was whichever
+    submission shuffled first, and every check passed. It cannot see an information
+    leak that the client merely declines to render. It cannot tell that auto-playing
+    only the current turn leaves a two-player round taking 32 minutes. These stay in
+    the guide and the checklist, and are the argument for each game unit-testing the
+    function that decides its winner.
