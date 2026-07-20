@@ -50,11 +50,26 @@ const LS = {
   role: "lan-party:role",
 };
 
+// crypto.randomUUID() is secure-context only, and the whole point of this app is
+// joining over http://<lan-ip>, which is not a secure context. getRandomValues is
+// available everywhere, so build the UUID from it.
+function randomToken(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6]! & 0x0f) | 0x40; // version 4
+  b[8] = (b[8]! & 0x3f) | 0x80; // variant 10x
+  const hex = [...b].map((n) => n.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 // Identity: a random token minted on first visit, kept in localStorage.
 export function getToken(): string {
   let t = localStorage.getItem(LS.token);
   if (!t) {
-    t = crypto.randomUUID();
+    t = randomToken();
     localStorage.setItem(LS.token, t);
   }
   return t;
@@ -94,7 +109,7 @@ class Store {
     ws.onopen = () => {
       this.retryMs = 500;
       this.set({ connected: true, everConnected: true });
-      if (this.joinIntent) this.sendJoin(this.joinIntent);
+      if (this.joinIntent) this.trySendJoin(this.joinIntent);
     };
     ws.onmessage = (ev) => {
       let msg: ServerMsg;
@@ -166,16 +181,39 @@ class Store {
 
   join(intent: { name?: string; role: Role }): void {
     this.joinIntent = intent;
-    this.sendJoin(intent);
+    this.trySendJoin(intent);
   }
 
-  private sendJoin(intent: { name?: string; role: Role }): void {
-    this.send({
-      type: "join",
-      token: getToken(),
-      name: intent.name,
-      role: intent.role,
-    });
+  /**
+   * Joining is the one path where a thrown error is invisible: it happens before
+   * any screen transition, so a failure just looks like a dead button. Always
+   * surface it — to the guest as a toast, to the host as a console error.
+   */
+  private trySendJoin(intent: { name?: string; role: Role }): void {
+    try {
+      this.send({
+        type: "join",
+        token: getToken(),
+        name: intent.name,
+        role: intent.role,
+      });
+    } catch (err) {
+      // Don't retry a throwing join on every reconnect.
+      this.joinIntent = null;
+      this.reportError("join", err);
+      this.showToast("Couldn't join the party. The host console has the details.");
+    }
+  }
+
+  /** Log locally, forward to the host terminal, and never throw while doing so. */
+  reportError(context: string, err: unknown): void {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error(`[lan-party] ${context}:`, e);
+    try {
+      this.send({ type: "client.error", context, message: e.message, stack: e.stack });
+    } catch {
+      // Reporting must never mask the original failure.
+    }
   }
 
   /** Forget the saved identity and return to the connect screen. */

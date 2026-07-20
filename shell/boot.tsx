@@ -20,5 +20,8 @@ export type GameRegistry = Map<string, GameRegistryEntry>;
 export function boot(entries: GameRegistryEntry[]): void {
   const registry: GameRegistry = new Map(entries.map((e) => [e.manifest.id, e]));
   store.connect();
+  // Guests are on phones with no devtools, so anything uncaught goes to the host.
+  window.addEventListener("error", (e) => store.reportError("uncaught", e.error ?? e.message));
+  window.addEventListener("unhandledrejection", (e) => store.reportError("unhandled-rejection", e.reason));
   createRoot(document.getElementById("root")!).render(<App registry={registry} />);
 }
