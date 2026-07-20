@@ -1,5 +1,5 @@
 import type { CreateGame, GameResults, GameServer } from "../sdk.ts";
-import type { PlayerInfo, TeamInfo } from "../shared/types.ts";
+import type { GameSettings, PlayerInfo, TeamInfo } from "../shared/types.ts";
 import type { GameDef } from "./games.ts";
 
 export interface RunnerCallbacks {
@@ -22,17 +22,26 @@ export class GameRunner {
   def: GameDef;
   seated: PlayerInfo[];
   teams: TeamInfo[];
+  settings: GameSettings;
   private cb: RunnerCallbacks;
 
-  constructor(def: GameDef, seated: PlayerInfo[], teams: TeamInfo[], cb: RunnerCallbacks) {
+  constructor(
+    def: GameDef,
+    seated: PlayerInfo[],
+    teams: TeamInfo[],
+    settings: GameSettings,
+    cb: RunnerCallbacks,
+  ) {
     this.def = def;
     this.seated = seated;
     this.teams = teams;
+    this.settings = settings;
     this.cb = cb;
   }
 
   start(create: CreateGame): void {
     this.instance = create({
+      settings: this.settings,
       players: this.seated,
       teams: this.teams,
       update: () => {

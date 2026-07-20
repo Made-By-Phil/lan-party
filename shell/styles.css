@@ -194,3 +194,22 @@ section { margin: 20px 0; }
 }
 .admin-actions { opacity: 0.35; transition: opacity 0.15s; }
 .player-row:hover .admin-actions { opacity: 1; }
+
+/* Per-game settings */
+.game-settings { margin: 6px 0; }
+.settings-summary { margin: 2px 0 0; font-style: italic; }
+.settings-panel {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 8px; padding: 10px;
+  background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.setting-field { display: flex; flex-direction: column; gap: 4px; }
+.setting-label { font-size: 0.85rem; font-weight: 600; }
+.setting-field input[type="checkbox"] { width: 22px; height: 22px; }
+.setting-number { display: flex; align-items: center; gap: 10px; }
+.setting-number input[type="range"] { flex: 1; }
+.setting-number output {
+  min-width: 2.5em; text-align: right;
+  font-variant-numeric: tabular-nums; font-weight: 700;
+}
+.setting-help { margin: 0; }

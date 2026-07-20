@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AdminOp, GameManifest, SessionState } from "../src/shared/types.ts";
 import { GameBrowser } from "./GameBrowser.tsx";
+import { GameSettingsPanel, SettingsSummary } from "./GameSettings.tsx";
 import { store, useClient } from "./store.ts";
 import { LastResult, Scoreboard, teamOf } from "./ui.tsx";
 
@@ -97,6 +98,8 @@ export function Lobby() {
                   {m.teams === "required" && " · teams"}
                   {m.displayMode === "shared-arena" && " · plays on the big screen"}
                 </p>
+                <SettingsSummary manifest={m} />
+                {isLead && <GameSettingsPanel manifest={m} />}
                 <div className="row">
                   <button
                     className={myVote === m.id ? "primary" : "ghost"}

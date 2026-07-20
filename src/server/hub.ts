@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import { satisfiesEngine } from "../engine.ts";
 import { installGame } from "../install/install.ts";
 import { fetchRegistry, findEntry, type RegistryIndex } from "../install/source.ts";
+import { coerceSetting, resolveSettings } from "../shared/settings.ts";
 import type { GameResults } from "../sdk.ts";
 import type {
   AdminOp,
@@ -349,6 +350,20 @@ export class Hub {
       case "startGame":
         void this.startGame(op.gameId, conn);
         return;
+      case "setSetting": {
+        // Settings are locked once a round starts: changing the rules under a
+        // game in flight is never what anyone meant.
+        if (this.session.phase !== "lobby") return;
+        const def = this.defs.find((d) => d.manifest.id === op.gameId);
+        const spec = def?.manifest.settings?.find((s) => s.key === op.key);
+        if (!spec) return;
+        const value = coerceSetting(spec, op.value);
+        if (value === null) return;
+        return this.session.setSetting(op.gameId, op.key, value);
+      }
+      case "resetSettings":
+        if (this.session.phase !== "lobby") return;
+        return this.session.resetSettings(op.gameId);
       case "endGame":
         this.runner?.end({ pointsByPlayer: {}, summary: "Ended by admin." });
         return;
@@ -393,7 +408,8 @@ export class Hub {
     let runner: GameRunner;
     try {
       const create = await loadGameServer(built);
-      runner = new GameRunner(def, seated, teams, {
+      const settings = resolveSettings(def.manifest.settings, this.session.settings[gameId]);
+      runner = new GameRunner(def, seated, teams, settings, {
         broadcast: () => this.broadcastGameState(),
         onEnd: (results) => this.finishGame(results),
       });

@@ -1,8 +1,8 @@
 # Writing a game for LAN Party
 
 This guide is self-contained: it is written so that a developer — human or LLM — with
-no other context about this repository can build a working game. The three bundled
-games are reference implementations; steal from them liberally.
+no other context about this repository can build a working game. The curated games
+are reference implementations; steal from them liberally.
 
 Reference games live in [lan-party-games](https://github.com/Made-By-Phil/lan-party-games) — clone it to read along:
 
@@ -27,7 +27,8 @@ Optionally one browser is the **shared visual** — the TV in the room.
 
 ## Anatomy of a game
 
-A game is one folder dropped into `games/` (restart the host to pick it up):
+A game is one folder dropped into `games/` — a running host picks it up and reloads
+everyone, never mid-round:
 
 ```
 games/my-game/
@@ -54,7 +55,8 @@ The real file must be strict JSON (the comments below are annotation only):
   "teams": "none",         // "none" | "optional" | "required"
   "tickRate": 0,           // 0 = event-driven; N>0 = host calls tick() N times/sec (max 60)
   "displayMode": "device", // "device" | "shared-arena" | "adaptive"
-  "engine": "^0.1.0"       // which host versions this game works with
+  "engine": "^0.1.0",      // which host versions this game works with
+  "settings": []           // optional knobs the party sets before a round
 }
 ```
 
@@ -62,6 +64,8 @@ The real file must be strict JSON (the comments below are annotation only):
   authors can both ship a `trivia`. A bare id is scoped to `local/` automatically:
   dropping an unpublished folder into `games/` stays frictionless, and a local sketch
   can never shadow an installed game. Players never see the id — only `name`.
+- `settings` — see [Settings](#settings) below. Declare knobs as data and the shell
+  renders the form for you; you never write settings UI.
 - `engine` — the host refuses to load a game that declares an incompatible range,
   with a message telling the player to update rather than a mystery crash. Standard
   npm range syntax (`^0.1.0`, `~0.1.0`, `>=0.1.0`, `0.1.x`, `*`). **While the engine
@@ -127,6 +131,7 @@ export default function createGame(ctx: GameContext): GameServer {
 |---|---|
 | `players: PlayerInfo[]` | seated roster, frozen at start. `PlayerInfo = { id, name, teamId }` (`teamId` is `null` — not absent — when the player has no team) |
 | `teams: TeamInfo[]` | teams with seated members (`{ id, name, color }`); `[]` when teamless |
+| `settings: GameSettings` | values for the knobs your `game.json` declares, already validated and clamped — every declared key is present. See [Settings](#settings) |
 | `update()` | ask the host to rebroadcast **now**. Only needed after timer-driven mutations — actions and ticks rebroadcast automatically |
 | `end(results)` | finish the round: `{ pointsByPlayer: Record<playerId, number>, summary?: string }`. Points are added to the party's cross-game ledger. Calling it twice is safe (second is ignored); after it, your instance is discarded |
 
@@ -210,6 +215,68 @@ results phase.
 - Countdown bars: compute from the deadline in state (`deadline - Date.now()`), tick
   with `requestAnimationFrame` or a 250 ms interval. Don't trust phase durations —
   trust the deadline.
+
+## Settings
+
+Games that need parameters — rounds, scoring rules, difficulty, how many bots —
+declare them in `game.json`. The shell renders the form, the host validates every
+value, and your server receives them on `ctx.settings`. **You never write settings
+UI, and you never validate settings input.**
+
+```jsonc
+"settings": [
+  { "key": "rounds", "label": "Rounds", "type": "number",
+    "default": 10, "min": 5, "max": 20, "step": 1 },
+  { "key": "speedBonus", "label": "Speed bonus", "type": "boolean", "default": true,
+    "help": "Faster answers score more" },
+  { "key": "difficulty", "label": "Difficulty", "type": "select", "default": "normal",
+    "options": [{ "value": "easy",   "label": "Easy" },
+                { "value": "normal", "label": "Normal" },
+                { "value": "hard",   "label": "Hard" }] }
+]
+```
+
+```ts
+export default function createGame(ctx: GameContext): GameServer {
+  const rounds = ctx.settings.rounds as number;        // already clamped to 5..20
+  const hard = ctx.settings.difficulty === "hard";     // always one of the options
+  // ...
+}
+```
+
+- **Three types**: `number` (renders a slider — give it `min`/`max`, optionally
+  `step`), `boolean` (a switch), `select` (a menu). Free text is deliberately absent:
+  party settings are knobs, and a text box is a validation problem wearing a hat.
+- **Every declared key is always present** in `ctx.settings`, already coerced to the
+  right type and clamped to your range. Don't default them again — if you find
+  yourself writing `?? 10`, the manifest is where that 10 belongs.
+- **Values are host-side.** Clients send a change request; the host checks it against
+  your spec and ignores anything that doesn't fit, so a hostile client cannot hand you
+  `rounds: 9999`.
+- **Who can change them**: the shared screen, or the party lead when there isn't one.
+  Everyone else sees the current values on the game card — people should know what
+  they're voting for.
+- **Locked during a round.** Settings are read once when the round starts; changing
+  the rules mid-game is never what anyone meant. Read them in `createGame` and keep
+  your own copy.
+- **Choices persist** with the party (`.lan-party/session.json`) and survive host
+  restarts. `--fresh` resets them.
+- **Removing or renaming a setting is safe**: stored values for keys you no longer
+  declare are dropped, and a stored value that no longer fits (you narrowed a range)
+  falls back to your default.
+- Max 12 settings. If you need more, the game probably wants a mode `select` rather
+  than twelve switches.
+
+A bad schema is an author error, not a runtime surprise: the host refuses to load a
+game whose `settings` block is malformed, and `lan-party validate` reports it. The
+smoke test runs your game with its declared defaults, so defaults that crash your game
+never reach a party.
+
+> **Bots**: a `bots` number setting is the right way to *ask* for them, but the
+> framework has no bot players — a bot is not in the roster and cannot be scored as a
+> player. Today a game implements bots internally: read the setting and simulate them
+> in your own state (Blackjack's dealer works this way). Framework-level bots are a
+> separate feature.
 
 ### Shared controls (`lan-party/sdk/controls`)
 
@@ -295,6 +362,8 @@ hand you control exactly, a disconnect mid-turn not stalling the round, and
 ## Checklist
 
 - [ ] `lan-party validate <your-folder>` passes (builds, runs, and lets go)
+- [ ] any tunable constant is a `settings` entry, not a magic number in source
+- [ ] game plays correctly at both extremes of every numeric setting
 - [ ] `game.json` valid; id namespaced `scope/name`; `engine` range declared;
       `shared.tsx` present if `shared-arena`
 - [ ] every timer cleared in `dispose()`

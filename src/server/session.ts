@@ -2,8 +2,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
   GameResultEntry,
+  GameSettings,
   Player,
   SessionState,
+  SettingValue,
   TeamInfo,
 } from "../shared/types.ts";
 
@@ -25,6 +27,8 @@ export interface PersistedSession {
   teams: TeamInfo[];
   points: Record<string, number>;
   history: GameResultEntry[];
+  /** gameId -> chosen setting values; a party keeps its preferences. */
+  settings?: Record<string, GameSettings>;
 }
 
 /**
@@ -37,6 +41,7 @@ export class Session {
   points: Record<string, number> = {};
   votes: Record<string, string> = {};
   history: GameResultEntry[] = [];
+  settings: Record<string, GameSettings> = {};
   phase: "lobby" | "in-game" = "lobby";
   activeGameId: string | null = null;
 
@@ -62,6 +67,7 @@ export class Session {
       s.teams = data.teams ?? [];
       s.points = data.points ?? {};
       s.history = data.history ?? [];
+      s.settings = data.settings ?? {};
       s.nextTeamIdx = s.teams.length;
     } catch {
       // no session file or unreadable — start empty
@@ -208,6 +214,21 @@ export class Session {
     this.changed();
   }
 
+  // ---- game settings -----------------------------------------------------
+
+  /** Store an already-coerced value. Coercion needs the spec, which lives in the hub. */
+  setSetting(gameId: string, key: string, value: SettingValue): void {
+    const current = this.settings[gameId] ?? {};
+    this.settings[gameId] = { ...current, [key]: value };
+    this.changed();
+  }
+
+  resetSettings(gameId: string): void {
+    if (!this.settings[gameId]) return;
+    delete this.settings[gameId];
+    this.changed();
+  }
+
   // ---- snapshot & persistence -------------------------------------------
 
   toState(): SessionState {
@@ -219,6 +240,7 @@ export class Session {
       votes: this.votes,
       history: this.history,
       activeGameId: this.activeGameId,
+      settings: this.settings,
     };
   }
 
@@ -237,6 +259,7 @@ export class Session {
       teams: this.teams,
       points: this.points,
       history: this.history,
+      settings: this.settings,
     };
     try {
       mkdirSync(dirname(this.file), { recursive: true });

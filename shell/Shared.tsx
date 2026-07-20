@@ -1,6 +1,7 @@
 import type { AdminOp } from "../src/shared/types.ts";
 import type { GameRegistry } from "./boot.tsx";
 import { GameBrowser } from "./GameBrowser.tsx";
+import { GameSettingsPanel, SettingsSummary } from "./GameSettings.tsx";
 import { buildGameApi, EndRoundButton } from "./GameHost.tsx";
 import { startBlocker } from "./Lobby.tsx";
 import { store, useClient } from "./store.ts";
@@ -64,6 +65,8 @@ export function SharedLobby() {
                     {votes > 0 && <span className="vote-count">{votes} 🗳</span>}
                   </div>
                   <p className="muted small">{m.description}</p>
+                  <SettingsSummary manifest={m} />
+                  <GameSettingsPanel manifest={m} />
                   <button
                     className="primary"
                     disabled={!!blocker}

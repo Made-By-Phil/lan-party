@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { GameManifest } from "../shared/types.ts";
+import { resolveSettings } from "../shared/settings.ts";
 import { packageRoot } from "./paths.ts";
 
 export interface SmokeResult {
@@ -32,7 +33,11 @@ export async function smokeTestGame(
     [
       join(packageRoot(), "src/server/smoke-child.ts"),
       pathToFileURL(builtServerPath).href,
-      JSON.stringify({ minPlayers: manifest.minPlayers, tickRate: manifest.tickRate }),
+      JSON.stringify({
+        minPlayers: manifest.minPlayers,
+        tickRate: manifest.tickRate,
+        settings: resolveSettings(manifest.settings, undefined),
+      }),
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );

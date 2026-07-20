@@ -3,16 +3,23 @@
 
 import type {
   GameManifest,
+  GameSettings,
   PlayerInfo,
   Role,
   TeamInfo,
 } from "./shared/types.ts";
 
 export type {
+  BooleanSetting,
   DisplayMode,
   GameManifest,
+  GameSettings,
   PlayerInfo,
+  NumberSetting,
   Role,
+  SelectSetting,
+  SettingSpec,
+  SettingValue,
   TeamInfo,
   TeamsRequirement,
 } from "./shared/types.ts";
@@ -29,6 +36,12 @@ export interface GameResults {
 }
 
 export interface GameContext {
+  /**
+   * Values for the settings your game.json declares, already validated and
+   * clamped by the host — every declared key is present, so read them directly
+   * (`ctx.settings.rounds as number`) without defaulting again.
+   */
+  settings: GameSettings;
   /** Roster seated for this round, frozen at start. */
   players: PlayerInfo[];
   /** Teams in play (empty when the round is teamless). */
