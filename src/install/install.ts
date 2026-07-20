@@ -18,9 +18,15 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { resolveSettings } from "../shared/settings.ts";
 import type { GameManifest } from "../shared/types.ts";
 import { buildGames, loadGameDef, type GameDef } from "../server/games.ts";
-import { smokeTestGame } from "../server/validate.ts";
+import { typecheckGame } from "../server/typecheck.ts";
+import {
+  perClientBytesPerSecond,
+  smokeTestGame,
+  SNAPSHOT_BUDGET_BYTES,
+} from "../server/validate.ts";
 import {
   fetchRegistry,
   findEntry,
@@ -208,6 +214,36 @@ export interface ValidationReport {
 }
 
 /**
+ * Every combination worth smoke-testing: the declared defaults, plus each
+ * numeric setting pushed to its min and its max.
+ *
+ * Three games shipped bugs that only appear at an extreme — a winner scoring
+ * 10 instead of 95, points blowing past 200, a round that takes 110 minutes —
+ * and every one of them passed a defaults-only smoke test.
+ */
+export function settingExtremes(specs: GameManifest["settings"]): {
+  label: string;
+  settings: Record<string, unknown>;
+}[] {
+  const base = resolveSettings(specs, undefined);
+  const runs = [{ label: "defaults", settings: base }];
+  for (const spec of specs ?? []) {
+    if (spec.type !== "number") continue;
+    for (const [edge, value] of [
+      ["min", spec.min],
+      ["max", spec.max],
+    ] as const) {
+      if (value === undefined || value === spec.default) continue;
+      runs.push({
+        label: `${spec.key}=${value} (${edge})`,
+        settings: { ...base, [spec.key]: value },
+      });
+    }
+  }
+  return runs;
+}
+
+/**
  * Validate a game folder the way the host will: manifest, engine range, a real
  * build, and (unless skipped) a smoke test in a child process. This is the same
  * check the CLI's `validate` runs, so "it installed" and "it passes validate"
@@ -216,7 +252,7 @@ export interface ValidationReport {
 export async function validateGameDir(
   dir: string,
   shellDir: string,
-  opts: { skipSmoke?: boolean } = {},
+  opts: { skipSmoke?: boolean; thorough?: boolean } = {},
 ): Promise<ValidationReport> {
   const def = loadGameDef(dir);
   const warnings: string[] = [];
@@ -228,11 +264,49 @@ export async function validateGameDir(
   try {
     const report = await buildGames([def], shellDir, join(work, "build"));
     if (report.failed.length > 0) throw new Error(report.failed[0]!.reason);
+
+    // Building proves nothing about types: esbuild strips them unchecked.
+    if (opts.thorough) {
+      const types = await typecheckGame(dir);
+      if (types.skipped) {
+        warnings.push("typecheck skipped — TypeScript is not installed alongside lan-party");
+      } else if (!types.ok) {
+        throw new Error(
+          `typecheck failed:\n  ${types.errors.slice(0, 10).join("\n  ")}` +
+            (types.errors.length > 10 ? `\n  …and ${types.errors.length - 10} more` : ""),
+        );
+      }
+    }
+
     if (!opts.skipSmoke) {
       const built = report.builtServers.get(def.manifest.id);
       if (!built) throw new Error("game server did not build");
-      const smoke = await smokeTestGame(built, def.manifest);
-      if (!smoke.ok) throw new Error(`smoke test failed — ${smoke.reason}`);
+
+      // Installs smoke the defaults only, to stay fast. `validate` also pushes
+      // every numeric setting to its edges, which is where the bugs were.
+      const runs = opts.thorough
+        ? settingExtremes(def.manifest.settings)
+        : [{ label: "defaults", settings: resolveSettings(def.manifest.settings, undefined) }];
+
+      for (const run of runs) {
+        const smoke = await smokeTestGame(built, def.manifest, 5000, run.settings);
+        if (!smoke.ok) {
+          const at = run.label === "defaults" ? "" : ` at ${run.label}`;
+          throw new Error(`smoke test failed${at} — ${smoke.reason}`);
+        }
+        const bytes = smoke.snapshotBytes ?? 0;
+        if (bytes > SNAPSHOT_BUDGET_BYTES) {
+          const rate = perClientBytesPerSecond(bytes, def.manifest.tickRate);
+          warnings.push(
+            `public state is ${(bytes / 1024).toFixed(1)} KB` +
+              (def.manifest.tickRate > 0
+                ? ` — about ${(rate / 1024).toFixed(0)} KB/s to every device at ${def.manifest.tickRate} Hz.` +
+                  " Move TV-only data into getSharedState(), or stop sending the whole world each tick."
+                : " — large for a snapshot re-sent on every change."),
+          );
+          break; // one warning is enough; it does not change per run
+        }
+      }
     }
   } finally {
     rmSync(work, { recursive: true, force: true });

@@ -40,7 +40,10 @@ export default function create(ctx) {
 describe("smokeTestGame", () => {
   it("passes a well-behaved game", async () => {
     const r = await smokeTestGame(game("clean", CLEAN), manifest());
-    expect(r).toEqual({ ok: true });
+    expect(r.ok).toBe(true);
+    expect(r.reason).toBeUndefined();
+    // The child also reports what a snapshot costs on the wire.
+    expect(r.snapshotBytes).toBeGreaterThan(0);
   });
 
   it("rejects a game that leaks a timer — it would never let the host go", async () => {

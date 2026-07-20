@@ -140,14 +140,31 @@ export default function createGame(ctx: GameContext): GameServer {
 1. **State must be JSON-serializable** (no functions, Dates, Maps, class instances in
    what the three `get*State` methods return).
 2. **Validate every action.** Clients are untrusted input, period.
-3. **Never stall.** A disconnected player must not freeze the game: auto-play their
-   turn, skip them, or let a timeout resolve it. Use `onPlayerDisconnect` /
-   `onPlayerReconnect` to track who's live. The framework will *not* pause for you.
+3. **Never stall — and "never" means every later turn too.** A disconnected player
+   must not freeze the game. **Auto-playing only the turn they were on is not
+   enough**: record that they are gone and keep auto-playing or skipping them on
+   every subsequent turn. Two real games got this wrong and a two-player round
+   where one person leaves took *32 minutes* of dead air, one turn timeout at a
+   time — technically "resolved by a timeout", practically a dead party.
+   - Track liveness in your own state from `onPlayerDisconnect` /
+     `onPlayerReconnect`; the framework will not pause, skip, or remove anyone.
+   - An auto-played move is still a move that player is scored on. Pick a
+     plausible one, not `legalMoves[0]` — the first legal index tends to be the
+     worst square on the board.
+   - **Real-time games:** none of "auto-play their turn" applies to a
+     continuously-moving avatar. Decide explicitly what happens to it — freeze it,
+     remove it from the world, or let it run — and decide whether an absent player
+     still appears in `pointsByPlayer`. Leaving a ghost that keeps moving, keeps
+     killing people and keeps scoring is the default if you decide nothing.
 4. **Timers are yours — and so is releasing them.** Use plain
    `setTimeout`/`setInterval` in `server.ts`, and call `ctx.update()` after any
    timer-driven state change. Convention for countdowns: put an absolute deadline
    (`Date.now() + ms`, epoch milliseconds) in public state and let clients render the
    countdown locally.
+   **Cancel a phase's timer when that phase ends early, not only in `dispose()`.**
+   If everyone acts before the deadline, the deadline timer is still armed and will
+   fire into a later phase — the classic "the round skipped itself" bug. `validate`
+   cannot see it, because `dispose()` does clean up eventually.
    **Clear every timer in `dispose()`.** The host calls it when the round ends for any
    reason, including an admin force-end. Nothing else can release your timers: the
    host cannot see them. `ctx.update()`/`ctx.end()` are no-ops afterwards, so a stray
@@ -159,10 +176,57 @@ export default function createGame(ctx: GameContext): GameServer {
    swallowed; the game continues. Don't rely on this; it's a crash pad, not a pattern.
 6. **Show the outcome before ending.** Convention: hold a short `results` phase
    (5–6 s) so players see final standings, then call `ctx.end`.
-7. **Scoring guideline:** award roughly **0–100 points per round** (winner near the
-   top of that range) so cross-game totals stay comparable. Not enforced.
-8. `getPlayerState` is called per seated player; `getSharedState` result is
-   shallow-merged **over** public state for the TV only.
+7. **Scoring: 0–100 is per player, not a pool to divide.** The winner of a round
+   should score near 100 **no matter how many people are seated or how the settings
+   are turned**, so totals stay comparable across games.
+   Two mistakes shipped in real games here:
+   - *Splitting one 100-point pool between players.* `round(100 * mine / total)` makes
+     winning an 8-player game worth ~20 and a 2-player game worth ~60. Normalise
+     against the **best possible or best actual score**, not the sum:
+     `round(100 * mine / bestScore)`.
+   - *Letting a setting scale the score.* `points = wins * 20` pays 60 at
+     `rounds: 3` and 200 at `rounds: 10`. Normalise against the setting too, and
+     check the arithmetic at **both ends** of every numeric knob.
+   A useful check: at every combination of settings, does the winner land near 100
+   and nobody exceed it?
+8. **Hidden information is hidden per phase.** `getPlayerState` is called per seated
+   player; `getSharedState` is shallow-merged **over** public state for the TV only.
+   Build `getPublicState()` *from the current phase* and **omit a secret field
+   entirely** while it must stay secret — do not include it and rely on the client
+   not to render it. A shipped game broadcast every player's answer the moment it
+   was submitted, while others were still choosing; the UI simply didn't draw it.
+   Anything in public state is in devtools, on the wire, and in every player's hands.
+9. **A pending transition must not leave the old phase live.** If you pause on a
+   timer — to show a resolved trick before clearing it — move to a blocking phase
+   *immediately* and let the timer only move you out of it. A shipped game left
+   `phase` and `turn` unchanged during a 900 ms pause, so the player who had just
+   played could legally play a second card into a full trick. Your `onAction`
+   guards were all correct; the state they guarded was stale.
+
+## Real-time games (`tickRate > 0`)
+
+Everything above still applies; these are the parts that only bite at 10–60 Hz, and
+every one of them shipped as a bug in a real game.
+
+- **Budget your public state.** Every client receives the whole snapshot on every
+  tick: at `tickRate` N, that is `sizeof(getPublicState()) × N` bytes per second, to
+  *each* phone plus the TV. A shipped game sent a 1440-cell grid twice over — 8.7 KB,
+  10 times a second, ~87 KB/s per device and ~0.8 MB/s across a full party, on
+  someone's home wifi. **Keep a real-time snapshot under ~2 KB**; `lan-party validate`
+  warns above that. Put anything only the TV renders in `getSharedState()`.
+- **Actions are a second broadcast channel.** The host rebroadcasts after *every*
+  accepted action, not just every tick. A thumbstick drag emits several direction
+  changes between ticks, each forcing a full broadcast to everyone. Treat `onAction`
+  as cheap bookkeeping that records intent, and let `tick()` do the work.
+- **Decide what `dtMs` means and be consistent.** `tick(dtMs)` is not called on a
+  perfect schedule. Either accumulate `dtMs` into a fixed-step loop, or scale all
+  motion by it — but never mix the two. A shipped game moved riders exactly one cell
+  per call while counting respawn timers in real milliseconds, so a busy host quietly
+  made the game shorter in distance travelled while the on-screen clock was unaffected.
+- **Resolve simultaneous interactions in two passes.** Compute every player's intended
+  move first, then apply outcomes. Iterating the roster in order and mutating as you
+  go means seat 0 wins every head-on collision, all round — a hidden advantage nobody
+  can see and nobody chose.
 
 ## Bots
 
@@ -249,8 +313,14 @@ The framework gives you two testing tools, and they answer different questions:
 
 | | question | run it |
 |---|---|---|
-| `lan-party validate <dir>` | does it build, survive junk input, and let go? | before install, in CI |
+| `npx tsc --noEmit` | is it even type-correct? | first, and often |
+| `lan-party validate <dir>` | does it typecheck, build, survive junk input, run at every setting extreme, and let go? | before install, in CI |
 | your own `*.test.ts` | are the *rules* right? | while writing the game |
+
+`validate` typechecks because esbuild **strips types without checking them** — a game
+with hard type errors builds, runs, and used to pass. It also runs your game at the
+min and max of every numeric setting, because "works on the defaults" is where three
+shipped bugs hid.
 
 `validate` will never catch a scoring bug. Unit tests are where game logic is
 actually pinned down, and they pay off most for exactly the things bots need:
@@ -262,12 +332,28 @@ actually pinned down, and they pay off most for exactly the things bots need:
   interesting cases untestable.
 - **Test the bot as a decision function.** `decide(hand, upcard) → "hit" | "stand"`
   is a table of cases; a bot wired into a live round is not.
+- **Unit-test the function that decides who wins.** `validate` never runs your rules.
+  A shipped game stored the judge's pick and then never read it — the winner was
+  whichever submission happened to be shuffled first. It passed every automated check
+  we had, because no automated check can know what winning means in your game.
 - **Test both extremes of every numeric setting.** A game that works at `rounds: 10`
   and breaks at `rounds: 1` passes `validate` and fails at the party.
 
 The curated collection ([lan-party-games](https://github.com/Made-By-Phil/lan-party-games))
 runs `vitest` across every game, so a game placed there gets its tests run in CI.
 For a standalone game, any test runner works — nothing in the framework depends on it.
+
+## Sharing the state shape
+
+Declare your public-state interface **once**, in a file free of DOM and Node imports,
+and have `getPublicState()` return that type. A hand-written copy of the shape on the
+client drifts silently: a shipped game's client read `rider.knockouts` off a type that
+never declared it (the server did send it), and its results screen coloured players by
+rank position instead of seat because the standings type omitted `seat` entirely — so
+the right colour was not even recoverable on the client.
+
+`npx tsc --noEmit` catches this class of bug in a second. `lan-party validate` now runs
+it for you.
 
 ## client.tsx and shared.tsx
 
@@ -462,7 +548,9 @@ hand you control exactly, a disconnect mid-turn not stalling the round, and
 
 ## Checklist
 
-- [ ] `lan-party validate <your-folder>` passes (builds, runs, and lets go)
+- [ ] `npx tsc --noEmit` is clean — esbuild strips types, it does not check them
+- [ ] `lan-party validate <your-folder>` passes (typechecks, builds, runs at every
+      setting extreme, and lets go)
 - [ ] any tunable constant is a `settings` entry, not a magic number in source
 - [ ] bots (if any) score nothing in `pointsByPlayer`, but do rank in the round
 - [ ] rules are pure and RNG is injected, so the mechanics have real tests
@@ -471,9 +559,14 @@ hand you control exactly, a disconnect mid-turn not stalling the round, and
       `shared.tsx` present if `shared-arena`
 - [ ] every timer cleared in `dispose()`
 - [ ] every `onAction` payload validated; wrong-turn/wrong-phase actions ignored
-- [ ] state JSON-serializable; secrets in `getPlayerState`, never in public state
+- [ ] state JSON-serializable; secrets in `getPlayerState`, never in public state,
+      and public state rebuilt per phase so nothing leaks early
+- [ ] real-time only: snapshot under ~2 KB; `dtMs` handled one way, not two
 - [ ] deadlines as epoch-ms in state; `ctx.update()` after every timer mutation
-- [ ] disconnect can never stall the round (tested)
+- [ ] a player who leaves is skipped on *every* later turn, not just the one
+      they were on; a real-time game decides what happens to their avatar
+- [ ] winner scores near 100 at every player count and every setting value;
+      nobody exceeds it
 - [ ] results phase before `ctx.end`; points ≈ 0–100; summary string set
 - [ ] CSS prefixed; touch targets big; works with and without a shared visual
 - [ ] `tsc` clean + scripted e2e round passes
