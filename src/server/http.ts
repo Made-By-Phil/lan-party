@@ -25,8 +25,14 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
 };
 
-export function createHttpServer(buildDir: string): http.Server {
+/**
+ * `buildDir` is read per request rather than captured: a rebuild swaps in a new
+ * directory, and pointing at the new one is how the swap becomes visible. No
+ * files move under a request that is already streaming.
+ */
+export function createHttpServer(getBuildDir: () => string): http.Server {
   return http.createServer((req, res) => {
+    const buildDir = getBuildDir();
     const url = (req.url ?? "/").split("?")[0]!;
     if (url === "/" || url === "/index.html" || url === "/shared") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });

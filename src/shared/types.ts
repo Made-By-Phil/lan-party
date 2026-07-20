@@ -113,4 +113,6 @@ export type ServerMsg =
       seated: PlayerInfo[];
     }
   | { type: "game.over"; results: GameResultEntry }
+  /** The game bundle changed; reload to pick it up. Never sent mid-round. */
+  | { type: "reload"; reason?: string }
   | { type: "error"; message: string; code?: "kicked" | "shared-unavailable" };

@@ -49,8 +49,38 @@ export class Hub {
     session.onChange = () => this.broadcastSession();
   }
 
+  private pendingReload: string | null = null;
+
   get sharedVisualPresent(): boolean {
     return [...this.conns].some((c) => c.role === "shared");
+  }
+
+  /** Swap in a freshly built catalog. The running round, if any, is untouched. */
+  setGames(defs: GameDef[], builtServers: Map<string, string>): void {
+    this.defs = defs;
+    this.builtServers = builtServers;
+    this.broadcastSession();
+  }
+
+  /**
+   * Ask every client to reload. Held until the lobby: interrupting a round to
+   * pick up a game nobody is playing yet is never worth it (decision 33).
+   */
+  requestReload(reason: string): void {
+    if (this.session.phase !== "lobby") {
+      this.pendingReload = reason;
+      return;
+    }
+    this.pendingReload = null;
+    this.broadcast({ type: "reload", reason });
+  }
+
+  private flushPendingReload(): void {
+    if (this.pendingReload && this.session.phase === "lobby") {
+      const reason = this.pendingReload;
+      this.pendingReload = null;
+      this.broadcast({ type: "reload", reason });
+    }
   }
 
   catalog() {
@@ -293,6 +323,8 @@ export class Hub {
     };
     this.session.recordResult(entry);
     this.broadcast({ type: "game.over", results: entry });
+    // Back in the lobby: now is the moment a queued reload is harmless.
+    this.flushPendingReload();
   }
 
   // ---- broadcasting ------------------------------------------------------

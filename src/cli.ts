@@ -29,6 +29,7 @@ Server options:
                       merged with the bundled games, yours win on id clash)
   --no-shared-visual  Never offer the shared-visual role on the connect screen
   --fresh             Ignore any saved session and start a new party
+  --no-watch          Don't rebuild when the games folder changes
   -h, --help          Show this help
 
 add <source> accepts:
@@ -64,6 +65,7 @@ function parseServerArgs(argv: string[]) {
     gamesDir: null as string | null,
     allowShared: true,
     fresh: false,
+    watch: true,
     cwd,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -83,6 +85,9 @@ function parseServerArgs(argv: string[]) {
         break;
       case "--fresh":
         cfg.fresh = true;
+        break;
+      case "--no-watch":
+        cfg.watch = false;
         break;
       case "-h":
       case "--help":

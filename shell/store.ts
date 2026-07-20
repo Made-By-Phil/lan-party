@@ -163,6 +163,11 @@ class Store {
       case "game.over":
         this.set({ game: null });
         break;
+      case "reload":
+        // The host rebuilt the bundle. Identity lives in localStorage, so a
+        // reload drops everyone straight back into their seat.
+        location.reload();
+        break;
       case "error":
         if (msg.code === "kicked") {
           this.joinIntent = null;
