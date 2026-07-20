@@ -111,24 +111,119 @@ const COMMON: esbuild.BuildOptions = {
   nodePaths: [join(packageRoot(), "node_modules")],
 };
 
-export async function buildGameServers(
-  defs: GameDef[],
+export interface BuildFailure {
+  id: string;
+  name: string;
+  reason: string;
+}
+
+export interface BuildReport {
+  /** Games that compiled cleanly and are safe to serve. */
+  ok: GameDef[];
+  /** Games dropped from this party, and why. */
+  failed: BuildFailure[];
+  /** id -> built server module path, for the surviving games only. */
+  builtServers: Map<string, string>;
+}
+
+/** File name is derived from the id, which may be namespaced (`author/game`). */
+const serverOutfile = (buildDir: string, id: string): string =>
+  join(buildDir, `${id.replace(/[^a-z0-9._-]/gi, "_")}.server.mjs`);
+
+async function buildOneServer(def: GameDef, buildDir: string): Promise<string> {
+  const outfile = serverOutfile(buildDir, def.manifest.id);
+  await esbuild.build({
+    ...COMMON,
+    entryPoints: [def.serverEntry],
+    platform: "node",
+    packages: "external",
+    outfile,
+  });
+  return outfile;
+}
+
+/** Compile one game's client (and shared) alone, to see whether it is the bad apple. */
+async function probeClient(
+  def: GameDef,
+  shellDir: string,
   buildDir: string,
-): Promise<Map<string, string>> {
+): Promise<void> {
+  const imports = [`import ${JSON.stringify(def.clientEntry)};`];
+  if (def.sharedEntry) imports.push(`import ${JSON.stringify(def.sharedEntry)};`);
+  await esbuild.build({
+    ...COMMON,
+    stdin: {
+      contents: imports.join("\n"),
+      resolveDir: shellDir,
+      sourcefile: "probe.tsx",
+      loader: "tsx",
+    },
+    platform: "browser",
+    // Nothing is written, but esbuild still needs an output path configured to
+    // resolve CSS and asset imports, and the inherited linked source map needs
+    // somewhere to point.
+    outdir: join(buildDir, ".probe"),
+    sourcemap: false,
+    write: false,
+  });
+}
+
+const reasonOf = (err: unknown): string =>
+  String((err as { message?: string })?.message ?? err)
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(0, 3)
+    .join(" ");
+
+/**
+ * Build every game, isolating failures. A game whose server or client fails to
+ * compile is dropped from the catalog with a warning rather than taking the
+ * whole party down (decision 28) — the host must survive one bad download.
+ */
+export async function buildGames(
+  defs: GameDef[],
+  shellDir: string,
+  buildDir: string,
+): Promise<BuildReport> {
   mkdirSync(buildDir, { recursive: true });
-  const out = new Map<string, string>();
+  const failed: BuildFailure[] = [];
+  const builtServers = new Map<string, string>();
+  const drop = (def: GameDef, reason: string) =>
+    failed.push({ id: def.manifest.id, name: def.manifest.name, reason });
+
+  let survivors: GameDef[] = [];
   for (const def of defs) {
-    const outfile = join(buildDir, `${def.manifest.id}.server.mjs`);
-    await esbuild.build({
-      ...COMMON,
-      entryPoints: [def.serverEntry],
-      platform: "node",
-      packages: "external",
-      outfile,
-    });
-    out.set(def.manifest.id, outfile);
+    try {
+      builtServers.set(def.manifest.id, await buildOneServer(def, buildDir));
+      survivors.push(def);
+    } catch (err) {
+      drop(def, reasonOf(err));
+    }
   }
-  return out;
+
+  // Fast path: one combined bundle, as before. Only when that fails do we pay
+  // for per-game probing to find which game is at fault.
+  try {
+    await bundleClient(survivors, shellDir, buildDir);
+  } catch (combinedErr) {
+    const good: GameDef[] = [];
+    for (const def of survivors) {
+      try {
+        await probeClient(def, shellDir, buildDir);
+        good.push(def);
+      } catch (err) {
+        drop(def, reasonOf(err));
+        builtServers.delete(def.manifest.id);
+      }
+    }
+    // Every game compiles alone, so the fault is in the shell or the entry
+    // glue — that is our bug, not a bad download, and must be loud.
+    if (good.length === survivors.length) throw combinedErr;
+    survivors = good;
+    await bundleClient(survivors, shellDir, buildDir);
+  }
+
+  return { ok: survivors, failed, builtServers };
 }
 
 export async function loadGameServer(builtFile: string): Promise<CreateGame> {
@@ -140,7 +235,7 @@ export async function loadGameServer(builtFile: string): Promise<CreateGame> {
   return mod.default as CreateGame;
 }
 
-export async function buildClientApp(
+async function bundleClient(
   defs: GameDef[],
   shellDir: string,
   buildDir: string,

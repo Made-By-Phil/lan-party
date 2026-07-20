@@ -1,12 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
-import {
-  buildClientApp,
-  buildGameServers,
-  discoverGames,
-  mergeCatalogs,
-} from "./games.ts";
+import { buildGames, discoverGames, mergeCatalogs } from "./games.ts";
 import { createHttpServer } from "./http.ts";
 import { Hub } from "./hub.ts";
 import { packageRoot } from "./paths.ts";
@@ -43,15 +38,22 @@ export async function startServer(cfg: ServerConfig): Promise<RunningServer> {
       : null;
   const bundled = discoverGames(bundledDir);
   const user = userDir && userDir !== bundledDir ? discoverGames(userDir) : [];
-  const defs = mergeCatalogs(bundled, user);
+  const discovered = mergeCatalogs(bundled, user);
+
+  const t0 = performance.now();
+  const build = await buildGames(discovered, join(root, "shell"), buildDir);
+  const buildMs = Math.round(performance.now() - t0);
+  const defs = build.ok;
+  const builtServers = build.builtServers;
+
+  // A broken game is excluded from the catalog, never fatal — the party starts
+  // with whatever works (decision 28).
+  for (const f of build.failed) {
+    console.warn(`[lan-party] skipping game "${f.id}": ${f.reason}`);
+  }
   if (defs.length === 0) {
     console.warn("[lan-party] no games found — the lobby will be empty.");
   }
-
-  const t0 = performance.now();
-  const builtServers = await buildGameServers(defs, buildDir);
-  await buildClientApp(defs, join(root, "shell"), buildDir);
-  const buildMs = Math.round(performance.now() - t0);
 
   const session = Session.load(join(dataDir, "session.json"), cfg.fresh);
   const hub = new Hub(session, defs, builtServers, { allowShared: cfg.allowShared });
