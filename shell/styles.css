@@ -154,6 +154,11 @@ section { margin: 20px 0; }
 }
 .game-title { font-weight: 700; }
 .game-viewport { flex: 1; display: flex; flex-direction: column; }
+.big-screen-hint {
+  padding: 7px 14px; text-align: center;
+  font-size: 0.85rem; color: var(--muted);
+  background: var(--bg-sunken); border-bottom: 1px solid var(--border);
+}
 .center-screen {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 16px; padding: 24px;

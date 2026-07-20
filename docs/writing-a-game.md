@@ -175,8 +175,10 @@ results phase.
 ### UI rules that matter at a party
 
 - **Mobile-first**: thumb-sized buttons (≥48 px), no hover-dependent UI, no tiny text.
-  For held controls (d-pads), use pointer events — `onPointerDown`/`Up`/`Leave`/
-  `Cancel` (+ `setPointerCapture`) — never click.
+- **Don't hand-roll movement controls** — import them (see below). If you do build a
+  held control yourself, use pointer events (`onPointerDown`/`Up`/`Leave`/`Cancel`
+  + `setPointerCapture`), never click, and set `touch-action: none` or the drag
+  scrolls the page instead of driving your game.
 - **Prefix every CSS class** with a short game slug (`bj-`, `tv-`, `bm-`, …): all
   games share one global stylesheet.
 - Build on the shell's CSS variables — `--bg`, `--bg-raised`, `--bg-sunken`,
@@ -189,15 +191,45 @@ results phase.
   with `requestAnimationFrame` or a 250 ms interval. Don't trust phase durations —
   trust the deadline.
 
+### Shared controls (`lan-party/sdk/controls`)
+
+If your game needs directional movement, import the controls instead of building a
+d-pad. This is the one framework module with a runtime dependency (React), which is
+why it is a separate entry point from `lan-party/sdk`.
+
+```tsx
+import { ActionButton, Gamepad, Thumbstick } from "lan-party/sdk/controls";
+
+<Gamepad compact={showArena}>
+  <Thumbstick onChange={(dir) => game.send({ type: "move", dir })} />
+  <ActionButton icon="💣" label="BOMB" hotkey="Space"
+                onPress={() => game.send({ type: "bomb" })} />
+</Gamepad>
+```
+
+- `Thumbstick` tracks the finger continuously and resolves to one of four
+  directions (`"up" | "down" | "left" | "right"`, or `null` when centred). It
+  **only calls `onChange` on a change**, so it is safe to send straight to the
+  server — pointer events fire far faster than you want to emit. It also handles
+  WASD/arrows (`keyboard={false}` to opt out) and emits `null` on unmount, so a
+  round ending mid-drag can't leave a player walking.
+- `ActionButton` fires on press, not release. `repeatMs` repeats while held;
+  `hotkey` binds a `KeyboardEvent.code` for laptop players.
+- Tune with `deadzone` (default `0.3` of the pad radius). The stick biases toward
+  the direction already held so a thumb near a 45° diagonal doesn't chatter.
+- Style them from your game's CSS — scope overrides under your own class
+  (`.bm-client .lp-action { … }`) so you don't restyle every game's controls.
+
 ## Environment constraints (things that break builds)
 
 - TypeScript is run through esbuild/Node type-stripping: **erasable syntax only** —
   no `enum`, no constructor parameter properties, no `namespace`. (`tsc --noEmit`
   with this repo's config catches all of it.)
-- `import type { ... } from "lan-party/sdk"` is the **only** framework import, and
-  only for types. Games may not add npm dependencies; available at runtime: React
-  (client side), Node built-ins (server side). JSON files can be imported directly on
-  either side (bundled at build time).
+- Two framework imports exist, and no others: `lan-party/sdk` (types only) and
+  `lan-party/sdk/controls` (React touch controls, client side only). Games may not
+  add npm dependencies; available at runtime: React (client side), Node built-ins
+  (server side). JSON files can be imported directly on either side (bundled at
+  build time).
 - No DOM/React in `server.ts`; no Node APIs in `client.tsx`/`shared.tsx`. Files
   imported by *both* (constants, pure sim logic) must be free of either.
 - The host builds all games at startup; a syntax error in your game prints a warning

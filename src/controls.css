@@ -1,0 +1,91 @@
+/* Shared touch controls (lan-party/sdk/controls). */
+
+.lp-gamepad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+}
+.lp-gamepad.compact {
+  gap: 12px;
+  padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+}
+
+.lp-stick {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  /* Without this the drag scrolls the page instead of steering. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.lp-stick.active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.lp-gamepad.compact .lp-stick { width: 128px; height: 128px; }
+
+/* Faint crosshair so the four directions are discoverable at rest. */
+.lp-stick-ring {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.lp-stick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40%;
+  height: 40%;
+  margin: -20% 0 0 -20%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #6f7ea8, #45507080);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  /* Snaps back to centre on release; follows the finger 1:1 while held. */
+  transition: transform 90ms ease-out;
+}
+.lp-stick.active .lp-stick-knob { transition: none; }
+
+.lp-action {
+  flex: none;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+  color: inherit;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.lp-action:active { background: rgba(255, 255, 255, 0.16); transform: scale(0.96); }
+.lp-action:disabled { opacity: 0.4; }
+.lp-gamepad.compact .lp-action { width: 92px; height: 92px; }
+
+.lp-action-icon { font-size: 2rem; line-height: 1; }
+.lp-gamepad.compact .lp-action-icon { font-size: 1.5rem; }
+.lp-action-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}

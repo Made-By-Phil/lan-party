@@ -200,3 +200,48 @@ describe("protocol", () => {
     a.close();
   });
 });
+
+describe("client error reporting", () => {
+  it("logs a client error to the host console, even before joining", async () => {
+    const errs: string[] = [];
+    const orig = console.error;
+    console.error = (...a: unknown[]) => errs.push(a.join(" "));
+    try {
+      const a = await new TestClient().connect(server.port);
+      await a.expectMsg((m) => m.type === "session");
+      // Unjoined connection: this is exactly the case that used to be invisible.
+      a.send({
+        type: "client.error",
+        context: "join",
+        message: "crypto.randomUUID is not a function",
+        stack: "TypeError: boom\n  at getToken",
+      });
+      await new Promise((r) => setTimeout(r, 200));
+      a.close();
+    } finally {
+      console.error = orig;
+    }
+    const line = errs.find((e) => e.includes("client error"));
+    expect(line).toBeDefined();
+    expect(line).toContain("[join]");
+    expect(line).toContain("crypto.randomUUID is not a function");
+    expect(errs.some((e) => e.includes("at getToken"))).toBe(true);
+  });
+
+  it("clamps oversized client error payloads", async () => {
+    const errs: string[] = [];
+    const orig = console.error;
+    console.error = (...a: unknown[]) => errs.push(a.join(" "));
+    try {
+      const a = await new TestClient().connect(server.port);
+      await a.expectMsg((m) => m.type === "session");
+      a.send({ type: "client.error", context: "x".repeat(500), message: "y".repeat(5000) });
+      await new Promise((r) => setTimeout(r, 200));
+      a.close();
+    } finally {
+      console.error = orig;
+    }
+    const line = errs.find((e) => e.includes("client error"))!;
+    expect(line.length).toBeLessThan(700);
+  });
+});

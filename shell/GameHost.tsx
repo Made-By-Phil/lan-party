@@ -48,6 +48,12 @@ export function GameHost({ registry }: { registry: GameRegistry }) {
   if (!entry) {
     return <div className="screen center-screen"><p>Unknown game… waiting for the round to end.</p></div>;
   }
+  // Shared-arena games hide their board on the device and draw it on the big
+  // screen. Say so, or a player whose shared screen is off-view just sees
+  // controls with nothing to aim at.
+  const onBigScreen =
+    entry.manifest.displayMode === "shared-arena" && client.sharedVisualPresent;
+
   return (
     <div className="screen game-screen">
       <header className="game-header">
@@ -55,6 +61,11 @@ export function GameHost({ registry }: { registry: GameRegistry }) {
         <span className="spacer" />
         {client.self?.isLead && <EndRoundButton />}
       </header>
+      {onBigScreen && (
+        <div className="big-screen-hint">
+          📺 The action is on the shared screen — this is your controller.
+        </div>
+      )}
       <div className="game-viewport">
         <entry.Client game={buildGameApi(client, entry)} />
       </div>

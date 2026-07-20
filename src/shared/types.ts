@@ -81,7 +81,12 @@ export type ClientMsg =
   | { type: "lobby.vote"; gameId: string | null }
   | { type: "lobby.joinTeam"; teamId: string | null }
   | { type: "lobby.admin"; admin: AdminOp }
-  | { type: "game.action"; action: unknown };
+  | { type: "game.action"; action: unknown }
+  /**
+   * Client-side failure forwarded to the host console. Guests are on phones with
+   * no reachable devtools, so the host terminal is the only place to see these.
+   */
+  | { type: "client.error"; context: string; message: string; stack?: string };
 
 export type ServerMsg =
   | { type: "joined"; self: Player | null; role: Role }

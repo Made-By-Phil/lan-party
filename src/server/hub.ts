@@ -100,6 +100,9 @@ export class Hub {
 
   private handleMsg(conn: Conn, msg: ClientMsg): void {
     if (msg.type === "join") return this.handleJoin(conn, msg);
+    // Logged before the join gate: the most useful client errors are the ones
+    // that stop a device from joining in the first place.
+    if (msg.type === "client.error") return this.logClientError(conn, msg);
     if (conn.role === "player" && conn.playerId) {
       const pid = conn.playerId;
       switch (msg.type) {
@@ -160,6 +163,22 @@ export class Hub {
       this.runner.onPlayerReconnect(player.id);
       this.sendGameState(conn);
     }
+  }
+
+  /** Surface a guest device's error on the host terminal, tagged with who sent it. */
+  private logClientError(
+    conn: Conn,
+    msg: Extract<ClientMsg, { type: "client.error" }>,
+  ): void {
+    const player = conn.playerId ? this.session.toState().players.find((p) => p.id === conn.playerId) : null;
+    const who = player?.name ?? conn.role ?? "unjoined";
+    const where = conn.debugAddr ? ` @ ${conn.debugAddr}` : "";
+    // Untrusted input from the client: clamp before it reaches the terminal.
+    const context = String(msg.context ?? "?").slice(0, 80);
+    const message = String(msg.message ?? "").slice(0, 500);
+    const stack = msg.stack ? String(msg.stack).slice(0, 2000) : null;
+    console.error(`[lan-party] client error (${who}${where}) [${context}]: ${message}`);
+    if (stack) console.error(stack);
   }
 
   private handleAdmin(conn: Conn, op: AdminOp): void {

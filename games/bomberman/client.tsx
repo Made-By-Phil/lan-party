@@ -1,56 +1,13 @@
 // Boom Grid — player device UI. A gamepad when the room has a shared visual,
 // arena + compact controls otherwise.
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { GameClientProps } from "lan-party/sdk";
+import { ActionButton, Gamepad, Thumbstick } from "lan-party/sdk/controls";
 import { ArenaCanvas, PLAYER_COLORS, PU_ICONS, type ArenaState } from "./arena.tsx";
-import { PU_BOMB, PU_RANGE, PU_SPEED, type Dir } from "./sim.ts";
+import { PU_BOMB, PU_RANGE, PU_SPEED } from "./sim.ts";
 import { StandingsCard, TimerBadge, useRosterMaps } from "./shared.tsx";
 import "./styles.css";
-
-const KEY_DIRS: Record<string, Dir> = {
-  ArrowUp: "up",
-  ArrowDown: "down",
-  ArrowLeft: "left",
-  ArrowRight: "right",
-  KeyW: "up",
-  KeyS: "down",
-  KeyA: "left",
-  KeyD: "right",
-};
-
-const DIR_ARROWS: Record<Dir, string> = { up: "▲", down: "▼", left: "◀", right: "▶" };
-
-function DirButton({
-  dir,
-  onPress,
-  onRelease,
-}: {
-  dir: Dir;
-  onPress: (d: Dir) => void;
-  onRelease: (d: Dir) => void;
-}) {
-  return (
-    <button
-      className={`bm-dir bm-dir-${dir}`}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        try {
-          (e.currentTarget as Element).setPointerCapture(e.pointerId);
-        } catch {
-          /* not supported — pointerleave covers us */
-        }
-        onPress(dir);
-      }}
-      onPointerUp={() => onRelease(dir)}
-      onPointerLeave={() => onRelease(dir)}
-      onPointerCancel={() => onRelease(dir)}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {DIR_ARROWS[dir]}
-    </button>
-  );
-}
 
 export default function BoomGridClient({ game }: GameClientProps) {
   const state = (game.state ?? {}) as ArenaState & {
@@ -63,47 +20,6 @@ export default function BoomGridClient({ game }: GameClientProps) {
 
   const sendRef = useRef(game.send);
   sendRef.current = game.send;
-  const heldRef = useRef<Dir | null>(null);
-
-  const press = (dir: Dir) => {
-    heldRef.current = dir;
-    sendRef.current({ type: "move", dir });
-  };
-  const release = (dir: Dir) => {
-    if (heldRef.current !== dir) return;
-    heldRef.current = null;
-    sendRef.current({ type: "move", dir: null });
-  };
-  const bomb = () => sendRef.current({ type: "bomb" });
-
-  // Keyboard support for laptop players.
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      const dir = KEY_DIRS[e.code];
-      if (dir) {
-        e.preventDefault();
-        heldRef.current = dir;
-        sendRef.current({ type: "move", dir });
-      } else if (e.code === "Space") {
-        e.preventDefault();
-        sendRef.current({ type: "bomb" });
-      }
-    };
-    const up = (e: KeyboardEvent) => {
-      const dir = KEY_DIRS[e.code];
-      if (dir && heldRef.current === dir) {
-        heldRef.current = null;
-        sendRef.current({ type: "move", dir: null });
-      }
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
 
   const me = (state.players ?? []).find((p) => p.id === game.self?.id);
   const myColor = colors[game.self?.id ?? ""] ?? PLAYER_COLORS[0]!;
@@ -163,25 +79,15 @@ export default function BoomGridClient({ game }: GameClientProps) {
       )}
 
       {!dead && !inResults && (
-        <div className={`bm-controls${showArena ? " compact" : ""}`}>
-          <div className="bm-dpad">
-            <DirButton dir="up" onPress={press} onRelease={release} />
-            <DirButton dir="left" onPress={press} onRelease={release} />
-            <span className="bm-dpad-center" />
-            <DirButton dir="right" onPress={press} onRelease={release} />
-            <DirButton dir="down" onPress={press} onRelease={release} />
-          </div>
-          <button
-            className="bm-bomb"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              bomb();
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-          >
-            💣<span>BOMB</span>
-          </button>
-        </div>
+        <Gamepad compact={showArena}>
+          <Thumbstick onChange={(dir) => sendRef.current({ type: "move", dir })} />
+          <ActionButton
+            icon="💣"
+            label="BOMB"
+            hotkey="Space"
+            onPress={() => sendRef.current({ type: "bomb" })}
+          />
+        </Gamepad>
       )}
     </div>
   );

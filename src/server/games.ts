@@ -15,6 +15,7 @@ export interface GameDef {
 }
 
 const SDK_PATH = join(packageRoot(), "src/sdk.ts");
+const CONTROLS_PATH = join(packageRoot(), "src/controls.tsx");
 
 /**
  * Scan a games directory: every subfolder with a game.json is a candidate.
@@ -104,7 +105,7 @@ const COMMON: esbuild.BuildOptions = {
   jsx: "automatic",
   sourcemap: "linked",
   logLevel: "silent",
-  alias: { "lan-party/sdk": SDK_PATH },
+  alias: { "lan-party/sdk": SDK_PATH, "lan-party/sdk/controls": CONTROLS_PATH },
   // Game folders live anywhere (--games-dir) and have no node_modules of their
   // own; resolve react etc. from the framework's install.
   nodePaths: [join(packageRoot(), "node_modules")],
